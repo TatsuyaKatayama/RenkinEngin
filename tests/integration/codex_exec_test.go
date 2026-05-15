@@ -61,7 +61,11 @@ install = "RUN echo installed"
 
 	// Build and Start
 	// Use docker compose up -d directly to avoid renkin start's attachment failure
-	upCmd := exec.Command("docker", "compose", "up", "-d", "--build")
+	args := []string{"compose", "up", "-d", "--build"}
+	if os.Getenv("CI") != "" {
+		args = append(args, "--no-cache")
+	}
+	upCmd := exec.Command("docker", args...)
 	upCmd.Dir = targetDir
 	if out, err := upCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))

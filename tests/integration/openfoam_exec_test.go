@@ -51,10 +51,14 @@ container = "/workspace"
 	}
 
 	// Build and Start
-	startCmd := exec.Command(binPath, "start")
-	startCmd.Dir = targetDir
-	if out, err := startCmd.CombinedOutput(); err != nil {
-		t.Fatalf("renkin start failed: %v\n%s", err, string(out))
+	args := []string{"compose", "up", "-d", "--build"}
+	if os.Getenv("CI") != "" {
+		args = append(args, "--no-cache")
+	}
+	upCmd := exec.Command("docker", args...)
+	upCmd.Dir = targetDir
+	if out, err := upCmd.CombinedOutput(); err != nil {
+		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
 	}
 	
 	// Execute icoFoam -help
