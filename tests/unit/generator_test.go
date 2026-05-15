@@ -132,6 +132,31 @@ func TestDockerComposeGenerationCodexBrowser(t *testing.T) {
 	assert.Contains(t, compose, "/root/.codex")
 }
 
+func TestEnvGenerationGemini(t *testing.T) {
+	cfg := config.Config{
+		LLM: &config.LLMConf{
+			Cmd:      "gemini",
+			AuthMode: "api_key",
+		},
+	}
+	env, err := generator.GenerateEnv(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, env, "GEMINI_API_KEY=")
+}
+
+func TestDockerComposeGenerationGeminiBrowser(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{},
+		LLM: &config.LLMConf{
+			Cmd:      "gemini",
+			AuthMode: "browser",
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "/root/.config/gemini")
+}
+
 func TestEnvGenerationOpencode(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{

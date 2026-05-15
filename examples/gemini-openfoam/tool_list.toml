@@ -1,0 +1,11 @@
+[[tool]]
+name = "openfoam2512"
+type = "shell"
+install = """
+RUN apt-get update && apt-get install -y curl ca-certificates && \
+    curl -s https://dl.openfoam.com/add-debian-repo.sh | bash && \
+    apt-get update && \
+    apt-get install -y openfoam2512-default && \
+    echo "source /usr/lib/openfoam/openfoam2512/etc/bashrc" >> /etc/bash.bashrc && \
+    rm -rf /var/lib/apt/lists/*
+"""
