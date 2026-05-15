@@ -2,7 +2,8 @@
 name = "openfoam2512"
 type = "shell"
 install = """
-RUN curl -s https://dl.openfoam.com/add-debian-repo.sh | bash && \
+RUN apt-get update && apt-get install -y curl ca-certificates && \
+    curl -s https://dl.openfoam.com/add-debian-repo.sh | bash && \
     apt-get update && \
     apt-get install -y openfoam2512-default && \
     rm -rf /var/lib/apt/lists/*
