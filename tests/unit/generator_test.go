@@ -1,0 +1,71 @@
+package unit
+
+import (
+	"testing"
+
+	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
+	"github.com/TatsuyaKatayama/RenkinEngin/internal/generator"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestDockerfileGeneration(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{BaseImage: "ubuntu:24.04"},
+		LLM: &config.LLMConf{
+			Cmd:     "claude",
+			Install: "RUN curl -fsSL https://claude.ai/install.sh | sh",
+		},
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{Name: "openfoam", Type: "shell", Install: "RUN apt-get install -y openfoam2412"},
+			},
+		},
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, dockerfile, "FROM ubuntu:24.04")
+	assert.Contains(t, dockerfile, "RUN curl -fsSL https://claude.ai/install.sh | sh")
+	assert.Contains(t, dockerfile, "RUN apt-get install -y openfoam2412")
+	assert.Contains(t, dockerfile, "WORKDIR /workspace")
+}
+
+func TestDockerComposeGeneration(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{
+			Mounts: []config.Mount{
+				{Host: "./workspace", Container: "/workspace"},
+			},
+		},
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{Name: "lightrag", Type: "mcp", Image: "lightrag/server:latest", Port: 8080},
+			},
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "llm-agent:")
+	assert.Contains(t, compose, "lightrag:")
+	assert.Contains(t, compose, "image: lightrag/server:latest")
+	assert.Contains(t, compose, "- \"8080:8080\"")
+	assert.Contains(t, compose, "- ./workspace:/workspace")
+}
+
+func TestDockerComposeGenerationBrowserAuth(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{},
+		LLM: &config.LLMConf{
+			Cmd:      "claude",
+			AuthMode: "browser",
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "/root/.claude")
+	assert.Contains(t, compose, "env_file: .env")
+
+	// Check env generation for browser mode
+	env, err := generator.GenerateEnv(cfg)
+	assert.NoError(t, err)
+	assert.Empty(t, env)
+}
