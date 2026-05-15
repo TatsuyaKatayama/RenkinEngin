@@ -26,6 +26,12 @@ const dockerComposeTemplate = `services:
     stdin_open: true
     tty: true
     env_file: .env
+{{if .LLM}}{{if .LLM.Ports}}
+    ports:
+{{- range .LLM.Ports}}
+      - "{{.}}"
+{{- end}}
+{{end}}{{end}}
     volumes:
 {{- range .Docker.Mounts}}
       - {{.Host}}:{{.Container}}

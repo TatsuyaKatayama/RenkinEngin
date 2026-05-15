@@ -19,9 +19,10 @@ type Mount struct {
 }
 
 type LLMConf struct {
-	Cmd      string `toml:"cmd"`
-	AuthMode string `toml:"auth_mode"`
-	Install  string `toml:"install"`
+	Cmd      string   `toml:"cmd"`
+	AuthMode string   `toml:"auth_mode"`
+	Install  string   `toml:"install"`
+	Ports    []string `toml:"ports"`
 }
 
 type Tool struct {
