@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +37,6 @@ container = "/workspace"
 		t.Fatalf("failed to read preset: %v", err)
 	}
 
-	// We need a minimal tool list because it's required by 'assign'
 	toolList := `[[tool]]
 name = "minimal-tool"
 type = "shell"
@@ -60,25 +60,26 @@ install = "RUN echo installed"
 	}
 
 	// Build and Start
-	startCmd := exec.Command(binPath, "start")
-	startCmd.Dir = targetDir
-	// Note: 'renkin start' might try to attach and fail since it's not interactive here,
-	// but it should at least perform 'docker compose up -d'.
-	out, err := startCmd.CombinedOutput()
-	if err != nil {
-		t.Logf("renkin start returned error (likely attachment failed): %v\n%s", err, string(out))
+	// Use docker compose up -d directly to avoid renkin start's attachment failure
+	upCmd := exec.Command("docker", "compose", "up", "-d", "--build")
+	upCmd.Dir = targetDir
+	if out, err := upCmd.CombinedOutput(); err != nil {
+		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
 	}
 	
-	// Execute codex --version to verify installation
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "codex", "--version")
+	// Wait a bit
+	time.Sleep(2 * time.Second)
+
+	// Verify installation
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "codex --version")
 	execCmd.Dir = targetDir
 	
 	output, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
-	assert.NotEmpty(t, string(output))
+	assert.Contains(t, string(output), "codex")
 
 	// Cleanup
-	endCmd := exec.Command(binPath, "end")
-	endCmd.Dir = targetDir
-	endCmd.Run()
+	downCmd := exec.Command("docker", "compose", "down")
+	downCmd.Dir = targetDir
+	downCmd.Run()
 }
