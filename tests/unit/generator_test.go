@@ -29,6 +29,31 @@ func TestDockerfileGeneration(t *testing.T) {
 	assert.Contains(t, dockerfile, "WORKDIR /workspace")
 }
 
+func TestDockerfileGenerationNoLLM(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{BaseImage: "ubuntu:24.04"},
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{Name: "python", Type: "shell", Install: "RUN apt-get install -y python3"},
+			},
+		},
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.NotContains(t, dockerfile, "LLM installation")
+	assert.Contains(t, dockerfile, "RUN apt-get install -y python3")
+}
+
+func TestDockerfileGenerationNoTools(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{BaseImage: "ubuntu:24.04"},
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, dockerfile, "FROM ubuntu:24.04")
+	assert.Contains(t, dockerfile, "WORKDIR /workspace")
+}
+
 func TestDockerComposeGeneration(t *testing.T) {
 	cfg := config.Config{
 		Docker: config.DockerConf{
@@ -51,6 +76,18 @@ func TestDockerComposeGeneration(t *testing.T) {
 	assert.Contains(t, compose, "- ./workspace:/workspace")
 }
 
+func TestDockerComposeGenerationNoMCP(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{
+			Mounts: []config.Mount{{Host: "./w", Container: "/w"}},
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "llm-agent:")
+	assert.NotContains(t, compose, "image:") // No MCP image
+}
+
 func TestDockerComposeGenerationBrowserAuth(t *testing.T) {
 	cfg := config.Config{
 		Docker: config.DockerConf{},
@@ -68,4 +105,18 @@ func TestDockerComposeGenerationBrowserAuth(t *testing.T) {
 	env, err := generator.GenerateEnv(cfg)
 	assert.NoError(t, err)
 	assert.Empty(t, env)
+}
+
+func TestEnvGenerationOpencode(t *testing.T) {
+	cfg := config.Config{
+		LLM: &config.LLMConf{
+			Cmd:      "opencode",
+			AuthMode: "api_key",
+		},
+	}
+	env, err := generator.GenerateEnv(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, env, "ANTHROPIC_API_KEY=")
+	assert.Contains(t, env, "OPENAI_API_KEY=")
+	assert.Contains(t, env, "GEMINI_API_KEY=")
 }
