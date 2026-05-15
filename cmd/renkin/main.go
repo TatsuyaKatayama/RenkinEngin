@@ -110,10 +110,8 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if env != "" {
-		if err := os.WriteFile(filepath.Join(targetDir, ".env"), []byte(env), 0644); err != nil {
-			return err
-		}
+	if err := os.WriteFile(filepath.Join(targetDir, ".env"), []byte(env), 0644); err != nil {
+		return err
 	}
 
 	// Create workspace and copy skills
