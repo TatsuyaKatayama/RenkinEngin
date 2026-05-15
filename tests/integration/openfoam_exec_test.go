@@ -51,11 +51,15 @@ container = "/workspace"
 	}
 
 	// Build and Start
-	args := []string{"compose", "up", "-d", "--build"}
 	if os.Getenv("CI") != "" {
-		args = append(args, "--no-cache")
+		buildCmd := exec.Command("docker", "compose", "build", "--no-cache")
+		buildCmd.Dir = targetDir
+		if out, err := buildCmd.CombinedOutput(); err != nil {
+			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
+		}
 	}
-	upCmd := exec.Command("docker", args...)
+
+	upCmd := exec.Command("docker", "compose", "up", "-d")
 	upCmd.Dir = targetDir
 	if out, err := upCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
