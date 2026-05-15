@@ -19,8 +19,10 @@ func ComposeDown() error {
 	return cmd.Run()
 }
 
-func ExecAttach(containerName string, command string) error {
-	cmd := exec.Command("docker", "exec", "-it", containerName, "bash", "-c", command)
+func ExecAttach(serviceName string, command string) error {
+	// Use 'docker compose exec' to target the service name directly.
+	// It automatically handles project-prefixed container names.
+	cmd := exec.Command("docker", "compose", "exec", serviceName, "bash", "-c", command)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
