@@ -107,6 +107,31 @@ func TestDockerComposeGenerationBrowserAuth(t *testing.T) {
 	assert.Empty(t, env)
 }
 
+func TestEnvGenerationCodex(t *testing.T) {
+	cfg := config.Config{
+		LLM: &config.LLMConf{
+			Cmd:      "codex",
+			AuthMode: "api_key",
+		},
+	}
+	env, err := generator.GenerateEnv(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, env, "OPENAI_API_KEY=")
+}
+
+func TestDockerComposeGenerationCodexBrowser(t *testing.T) {
+	cfg := config.Config{
+		Docker: config.DockerConf{},
+		LLM: &config.LLMConf{
+			Cmd:      "codex",
+			AuthMode: "browser",
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "/root/.codex")
+}
+
 func TestEnvGenerationOpencode(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{

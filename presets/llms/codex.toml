@@ -1,0 +1,6 @@
+cmd = "codex"
+auth_mode = "api_key"
+install = """
+RUN apt-get update && apt-get install -y nodejs npm && \
+    npm install -g @openai/codex
+"""
