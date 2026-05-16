@@ -2,6 +2,7 @@ package generator
 
 import (
 	"bytes"
+	"os"
 	"text/template"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -22,7 +23,14 @@ WORKDIR /workspace
 
 const dockerComposeTemplate = `services:
   llm-agent:
-    build: .
+    build:
+      context: .
+{{- if .ProxyKeys}}
+      args:
+{{- range .ProxyKeys}}
+        - {{.}}
+{{- end}}
+{{- end}}
     stdin_open: true
     tty: true
     env_file: .env
@@ -56,7 +64,24 @@ const envTemplate = `{{range .EnvKeys}}{{.}}=
 type GeneratorData struct {
 	config.Config
 	EnvKeys     []string
+	ProxyKeys   []string
 	ExtraMounts map[string][]config.Mount
+}
+
+var proxyEnvNames = []string{
+	"HTTP_PROXY", "http_proxy",
+	"HTTPS_PROXY", "https_proxy",
+	"NO_PROXY", "no_proxy",
+}
+
+func getActiveProxyKeys() []string {
+	var keys []string
+	for _, name := range proxyEnvNames {
+		if os.Getenv(name) != "" {
+			keys = append(keys, name)
+		}
+	}
+	return keys
 }
 
 func GenerateDockerfile(cfg config.Config) (string, error) {
@@ -79,6 +104,7 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 
 	data := GeneratorData{
 		Config:      cfg,
+		ProxyKeys:   getActiveProxyKeys(),
 		ExtraMounts: make(map[string][]config.Mount),
 	}
 
@@ -103,19 +129,26 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 }
 
 func GenerateEnv(cfg config.Config) (string, error) {
-	if cfg.LLM == nil || cfg.LLM.AuthMode == "browser" {
-		return "", nil
-	}
-
 	tmpl, err := template.New(".env").Parse(envTemplate)
 	if err != nil {
 		return "", err
 	}
 
+	var envKeys []string
+	if cfg.LLM != nil && cfg.LLM.AuthMode != "browser" {
+		envKeys = append(envKeys, cfg.LLM.GetEnvKeys()...)
+	}
+	// Add proxy keys to .env as well
+	envKeys = append(envKeys, getActiveProxyKeys()...)
+
+	if len(envKeys) == 0 {
+		return "", nil
+	}
+
 	data := struct {
 		EnvKeys []string
 	}{
-		EnvKeys: cfg.LLM.GetEnvKeys(),
+		EnvKeys: envKeys,
 	}
 
 	var buf bytes.Buffer
