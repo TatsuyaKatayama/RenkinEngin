@@ -35,3 +35,4 @@ workspace/
 # Editor/IDE
 # .idea/
 # .vscode/
+*.swp
