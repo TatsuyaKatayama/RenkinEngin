@@ -101,6 +101,46 @@ port = 8080
 	assert.Equal(t, 8080, list.Tools[1].Port)
 }
 
+func TestResolvePresets(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-preset-test")
+	defer os.RemoveAll(tmpDir)
+
+	presetsDir := filepath.Join(tmpDir, "presets")
+	os.MkdirAll(presetsDir, 0755)
+
+	// Create a dummy preset
+	presetContent := `
+[[tool]]
+name = "openfoam2512"
+type = "shell"
+install = "RUN echo foam-preset"
+`
+	os.WriteFile(filepath.Join(presetsDir, "openfoam2512.toml"), []byte(presetContent), 0644)
+
+	// Tool list using the preset
+	toolList := config.ToolList{
+		Tools: []config.Tool{
+			{Name: "my-foam", Preset: "openfoam2512"},
+		},
+	}
+
+	err := toolList.ResolvePresets(presetsDir)
+	assert.NoError(t, err)
+	assert.Equal(t, "my-foam", toolList.Tools[0].Name)
+	assert.Equal(t, "shell", toolList.Tools[0].Type)
+	assert.Equal(t, "RUN echo foam-preset", toolList.Tools[0].Install)
+
+	// Test fallback name
+	toolList2 := config.ToolList{
+		Tools: []config.Tool{
+			{Preset: "openfoam2512"},
+		},
+	}
+	err = toolList2.ResolvePresets(presetsDir)
+	assert.NoError(t, err)
+	assert.Equal(t, "openfoam2512", toolList2.Tools[0].Name)
+}
+
 func TestLLMTypeIdentification(t *testing.T) {
 	tests := []struct {
 		cmd      string

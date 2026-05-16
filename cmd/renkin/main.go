@@ -81,6 +81,21 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Resolve tool presets
+	// Try to find presets directory: 
+	// 1. Current directory
+	// 2. Relative to executable
+	presetsDir := "presets/tools"
+	if _, err := os.Stat(presetsDir); os.IsNotExist(err) {
+		if exePath, err := os.Executable(); err == nil {
+			presetsDir = filepath.Join(filepath.Dir(exePath), "presets/tools")
+		}
+	}
+
+	if err := tList.ResolvePresets(presetsDir); err != nil {
+		return fmt.Errorf("failed to resolve presets: %v", err)
+	}
+
 	cfg := config.Config{
 		Docker:   dConf,
 		LLM:      lConf,

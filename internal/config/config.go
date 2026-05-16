@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -28,6 +29,7 @@ type LLMConf struct {
 type Tool struct {
 	Name    string `toml:"name"`
 	Type    string `toml:"type"`
+	Preset  string `toml:"preset"`  // New field
 	Install string `toml:"install"` // For shell type
 	Image   string `toml:"image"`   // For mcp type
 	Port    int    `toml:"port"`    // For mcp type
@@ -72,15 +74,54 @@ func LoadToolList(path string) (ToolList, error) {
 	if _, err := toml.DecodeFile(path, &list); err != nil {
 		return list, err
 	}
-	for _, t := range list.Tools {
-		if t.Type == "shell" && t.Install == "" {
-			return list, fmt.Errorf("tool %s: install is required for shell type", t.Name)
+	return list, nil
+}
+
+func (tl *ToolList) ResolvePresets(presetsDir string) error {
+	for i, t := range tl.Tools {
+		if t.Preset != "" {
+			presetPath := filepath.Join(presetsDir, t.Preset+".toml")
+			if _, err := os.Stat(presetPath); os.IsNotExist(err) {
+				return fmt.Errorf("preset %s not found in %s", t.Preset, presetsDir)
+			}
+
+			var presetTools ToolList
+			if _, err := toml.DecodeFile(presetPath, &presetTools); err != nil {
+				return fmt.Errorf("failed to parse preset %s: %v", t.Preset, err)
+			}
+
+			if len(presetTools.Tools) == 0 {
+				return fmt.Errorf("preset %s contains no tools", t.Preset)
+			}
+
+			// Merge preset content into the tool definition
+			pTool := presetTools.Tools[0]
+			if tl.Tools[i].Name == "" {
+				tl.Tools[i].Name = pTool.Name
+			}
+			if tl.Tools[i].Type == "" {
+				tl.Tools[i].Type = pTool.Type
+			}
+			if tl.Tools[i].Install == "" {
+				tl.Tools[i].Install = pTool.Install
+			}
+			if tl.Tools[i].Image == "" {
+				tl.Tools[i].Image = pTool.Image
+			}
+			if tl.Tools[i].Port == 0 {
+				tl.Tools[i].Port = pTool.Port
+			}
 		}
-		if t.Type == "mcp" && (t.Image == "" || t.Port == 0) {
-			return list, fmt.Errorf("tool %s: image and port are required for mcp type", t.Name)
+
+		// Validation after resolution
+		if tl.Tools[i].Type == "shell" && tl.Tools[i].Install == "" {
+			return fmt.Errorf("tool %s: install is required for shell type", tl.Tools[i].Name)
+		}
+		if tl.Tools[i].Type == "mcp" && (tl.Tools[i].Image == "" || tl.Tools[i].Port == 0) {
+			return fmt.Errorf("tool %s: image and port are required for mcp type", tl.Tools[i].Name)
 		}
 	}
-	return list, nil
+	return nil
 }
 
 func (l *LLMConf) GetType() (string, error) {
