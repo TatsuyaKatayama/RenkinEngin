@@ -29,13 +29,10 @@ func main() {
 		RunE:  runAssign,
 	}
 
-	assignCmd.Flags().StringVar(&dockerPath, "docker", "", "Docker infra config file (required)")
-	assignCmd.Flags().StringVar(&llmPath, "llm", "", "LLM config file")
-	assignCmd.Flags().StringVar(&toolsPath, "tools", "", "Tool list file (required)")
+	assignCmd.Flags().StringVar(&dockerPath, "docker", "", "Docker infra config file")
+	assignCmd.Flags().StringVar(&llmPath, "llm", "", "LLM config file or preset name")
+	assignCmd.Flags().StringVar(&toolsPath, "tools", "", "Tool list file")
 	assignCmd.Flags().StringVar(&skillsPath, "skills", "", "LLM instructions file")
-
-	assignCmd.MarkFlagRequired("docker")
-	assignCmd.MarkFlagRequired("tools")
 
 	var startCmd = &cobra.Command{
 		Use:   "start",
@@ -61,6 +58,37 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	targetDir := args[0]
 	if err := utils.EnsureDir(targetDir); err != nil {
 		return err
+	}
+
+	// Auto-discovery of config files if not specified
+	if dockerPath == "" {
+		p := filepath.Join(targetDir, "docker.conf")
+		if _, err := os.Stat(p); err == nil {
+			dockerPath = p
+		} else {
+			return fmt.Errorf("docker.conf not found in %s and --docker not specified", targetDir)
+		}
+	}
+
+	if llmPath == "" {
+		p := filepath.Join(targetDir, "llm.conf")
+		if _, err := os.Stat(p); err == nil {
+			llmPath = p
+		}
+	}
+
+	if toolsPath == "" {
+		p := filepath.Join(targetDir, "tool_list.toml")
+		if _, err := os.Stat(p); err == nil {
+			toolsPath = p
+		}
+	}
+
+	if skillsPath == "" {
+		p := filepath.Join(targetDir, "skills.md")
+		if _, err := os.Stat(p); err == nil {
+			skillsPath = p
+		}
 	}
 
 	dConf, err := config.LoadDockerConf(dockerPath)
@@ -97,24 +125,24 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	tList, err := config.LoadToolList(toolsPath)
-	if err != nil {
-		return err
-	}
-
-	// Resolve tool presets
-	// Try to find presets directory: 
-	// 1. Current directory
-	// 2. Relative to executable
-	presetsDir := "presets/tools"
-	if _, err := os.Stat(presetsDir); os.IsNotExist(err) {
-		if exePath, err := os.Executable(); err == nil {
-			presetsDir = filepath.Join(filepath.Dir(exePath), "presets/tools")
+	var tList config.ToolList
+	if toolsPath != "" {
+		tList, err = config.LoadToolList(toolsPath)
+		if err != nil {
+			return err
 		}
-	}
 
-	if err := tList.ResolvePresets(presetsDir); err != nil {
-		return fmt.Errorf("failed to resolve presets: %v", err)
+		// Resolve tool presets
+		presetsDir := "presets/tools"
+		if _, err := os.Stat(presetsDir); os.IsNotExist(err) {
+			if exePath, err := os.Executable(); err == nil {
+				presetsDir = filepath.Join(filepath.Dir(exePath), "presets/tools")
+			}
+		}
+
+		if err := tList.ResolvePresets(presetsDir); err != nil {
+			return fmt.Errorf("failed to resolve presets: %v", err)
+		}
 	}
 
 	cfg := config.Config{
