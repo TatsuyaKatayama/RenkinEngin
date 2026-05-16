@@ -70,9 +70,30 @@ func runAssign(cmd *cobra.Command, args []string) error {
 
 	var lConf *config.LLMConf
 	if llmPath != "" {
-		lConf, err = config.LoadLLMConf(llmPath)
-		if err != nil {
-			return err
+		// Resolve LLM preset
+		// 1. Check if the path exists directly
+		if _, err := os.Stat(llmPath); err == nil {
+			lConf, err = config.LoadLLMConf(llmPath)
+			if err != nil {
+				return err
+			}
+		} else {
+			// 2. Try to resolve as a preset name
+			presetsLLMDir := "presets/llms"
+			if _, err := os.Stat(presetsLLMDir); os.IsNotExist(err) {
+				if exePath, err := os.Executable(); err == nil {
+					presetsLLMDir = filepath.Join(filepath.Dir(exePath), "presets/llms")
+				}
+			}
+			presetPath := filepath.Join(presetsLLMDir, llmPath+".toml")
+			if _, err := os.Stat(presetPath); err == nil {
+				lConf, err = config.LoadLLMConf(presetPath)
+				if err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("llm config or preset not found: %s", llmPath)
+			}
 		}
 	}
 
