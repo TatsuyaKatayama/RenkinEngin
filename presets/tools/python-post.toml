@@ -1,0 +1,18 @@
+[[tool]]
+name = "python-post"
+type = "shell"
+install = """
+RUN apt-get update && apt-get install -y python3 python-is-python3 python3-setuptools curl && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv pip install --system --break-system-packages \
+    foamlib \
+    DyMat \
+    numpy \
+    scipy \
+    matplotlib \
+    japanize-matplotlib \
+    optuna \
+    pandas && \
+    ln -s /root/.local/bin/uv /usr/local/bin/uv && \
+    rm -rf /var/lib/apt/lists/*
+"""
