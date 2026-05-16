@@ -52,7 +52,7 @@ container = "/workspace"
 
 	// Build and Start
 	if os.Getenv("CI") != "" {
-		buildCmd := exec.Command("docker", "compose", "build", "--no-cache")
+		buildCmd = exec.Command("docker", "compose", "build", "--no-cache")
 		buildCmd.Dir = targetDir
 		if out, err := buildCmd.CombinedOutput(); err != nil {
 			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
@@ -65,8 +65,8 @@ container = "/workspace"
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
 	}
 	
-	// Execute omc --help
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "omc", "--help")
+	// Execute omc --help using absolute path
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "/usr/bin/omc", "--help")
 	execCmd.Dir = targetDir
 	
 	output, err := execCmd.CombinedOutput()
