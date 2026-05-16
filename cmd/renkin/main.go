@@ -66,7 +66,20 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(p); err == nil {
 			dockerPath = p
 		} else {
-			return fmt.Errorf("docker.conf not found in %s and --docker not specified", targetDir)
+			// Fallback to default preset
+			presetsDockerDir := "presets/docker"
+			if _, err := os.Stat(presetsDockerDir); os.IsNotExist(err) {
+				if exePath, err := os.Executable(); err == nil {
+					presetsDockerDir = filepath.Join(filepath.Dir(exePath), "presets/docker")
+				}
+			}
+			presetPath := filepath.Join(presetsDockerDir, "default.toml")
+			if _, err := os.Stat(presetPath); err == nil {
+				dockerPath = presetPath
+				fmt.Println("Using default docker preset")
+			} else {
+				return fmt.Errorf("docker.conf not found in %s and default preset not found", targetDir)
+			}
 		}
 	}
 
