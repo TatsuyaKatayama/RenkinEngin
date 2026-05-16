@@ -2,10 +2,10 @@
 name = "openmodelica410"
 type = "shell"
 install = """
-RUN apt-get update && apt-get install -y curl ca-certificates gnupg lsb-release && \
-    curl -fsSL https://build.openmodelica.org/apt/openmodelica.asc | gpg --dearmor -o /usr/share/keyrings/openmodelica.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/openmodelica.gpg] https://build.openmodelica.org/apt $(lsb_release -cs) stable" > /etc/apt/sources.list.d/openmodelica.list && \
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
+    curl -fsSL https://build.openmodelica.org/apt/openmodelica.asc | gpg --dearmor -o /usr/share/keyrings/openmodelica-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/openmodelica-keyring.gpg] https://build.openmodelica.org/apt noble stable" > /etc/apt/sources.list.d/openmodelica.list && \
     apt-get update && \
-    apt-get install -y openmodelica omlib-modelica-4.1.0 && \
+    apt-get install -y openmodelica && \
     rm -rf /var/lib/apt/lists/*
 """
