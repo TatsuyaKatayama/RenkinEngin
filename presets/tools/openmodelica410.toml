@@ -6,6 +6,6 @@ RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
     curl -fsSL https://build.openmodelica.org/apt/openmodelica.asc | gpg --dearmor -o /usr/share/keyrings/openmodelica-keyring.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/openmodelica-keyring.gpg] https://build.openmodelica.org/apt noble stable" > /etc/apt/sources.list.d/openmodelica.list && \
     apt-get update && \
-    apt-get install -y openmodelica && \
+    apt-get install -y omc omlibrary && \
     rm -rf /var/lib/apt/lists/*
 """

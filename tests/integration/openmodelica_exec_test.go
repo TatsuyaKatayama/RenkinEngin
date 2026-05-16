@@ -52,14 +52,14 @@ container = "/workspace"
 
 	// Build and Start
 	if os.Getenv("CI") != "" {
-		buildCmd = exec.Command("docker", "compose", "build", "--no-cache")
+		buildCmd := exec.Command("docker", "compose", "build", "--no-cache")
 		buildCmd.Dir = targetDir
 		if out, err := buildCmd.CombinedOutput(); err != nil {
 			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
 		}
 	}
 
-	upCmd := exec.Command("docker", "compose", "up", "-d")
+	upCmd := exec.Command("docker", "compose", "up", "-d", "--build")
 	upCmd.Dir = targetDir
 	if out, err := upCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
@@ -72,6 +72,14 @@ container = "/workspace"
 	output, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
 	assert.Contains(t, string(output), "Usage")
+
+	// Verify MSL v4.1.0 is installed and loadable
+	loadCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "echo 'loadModel(Modelica, {\"4.1.0\"}); getErrorString();' | /usr/bin/omc")
+	loadCmd.Dir = targetDir
+	
+	loadOutput, err := loadCmd.CombinedOutput()
+	assert.NoError(t, err, string(loadOutput))
+	assert.Contains(t, string(loadOutput), "true", "MSL v4.1.0 should be loadable")
 
 	// Cleanup
 	endCmd := exec.Command(binPath, "end")
