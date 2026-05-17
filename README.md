@@ -38,6 +38,7 @@ renkin start
 - `codex`: Codex CLI (Node.js v24)
 
 ### 解析ツール
+- `forgejo-mcp`: Codex CLI / Gemini CLI 向け Forgejo MCP server
 - `git`: Git CLI（`GIT_USER_NAME`, `GIT_USER_EMAIL` をコンテナへ継承）
 - `mcp-server-git`: Codex CLI / Gemini CLI 向け Git MCP server
 - `openfoam2512`: 流体解析（Ubuntu 24.04 対応）

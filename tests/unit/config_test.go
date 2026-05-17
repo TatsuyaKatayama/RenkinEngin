@@ -179,6 +179,34 @@ func TestMCPServerGitToolPresetResolution(t *testing.T) {
 	assert.Equal(t, "mcp-server-git", list.Tools[1].Name)
 }
 
+func TestForgejoMCPToolPreset(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/forgejo-mcp.toml")
+	assert.NoError(t, err)
+	assert.Len(t, list.Tools, 2)
+
+	assert.Equal(t, "git", list.Tools[0].Preset)
+
+	tool := list.Tools[1]
+	assert.Equal(t, "forgejo-mcp", tool.Name)
+	assert.Equal(t, "shell", tool.Type)
+	assert.Contains(t, tool.Install, "git clone --depth 1 https://github.com/goern/forgejo-mcp.git")
+	assert.Contains(t, tool.Install, "go build -o /usr/local/bin/forgejo-mcp .")
+	assert.Contains(t, tool.Install, "/root/.codex/config.toml")
+	assert.Contains(t, tool.Install, "/root/.gemini/settings.json")
+	assert.Contains(t, tool.Install, "${FORGEJO_URL:-https://codeberg.org}")
+	assert.ElementsMatch(t, []string{"FORGEJO_URL", "FORGEJO_ACCESS_TOKEN", "FORGEJO_USER_AGENT"}, tool.Environment)
+}
+
+func TestForgejoMCPToolPresetResolution(t *testing.T) {
+	list := config.ToolList{Tools: []config.Tool{{Preset: "forgejo-mcp"}}}
+	err := list.ResolvePresets("../../presets/tools")
+	assert.NoError(t, err)
+	assert.Len(t, list.Tools, 2)
+	assert.Equal(t, "git", list.Tools[0].Name)
+	assert.Equal(t, "forgejo-mcp", list.Tools[1].Name)
+	assert.ElementsMatch(t, []string{"FORGEJO_URL", "FORGEJO_ACCESS_TOKEN", "FORGEJO_USER_AGENT"}, list.Tools[1].Environment)
+}
+
 func TestLLMTypeIdentification(t *testing.T) {
 	tests := []struct {
 		cmd      string

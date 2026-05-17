@@ -1,0 +1,30 @@
+[[tool]]
+preset = "git"
+
+[[tool]]
+name = "forgejo-mcp"
+type = "shell"
+environment = ["FORGEJO_URL", "FORGEJO_ACCESS_TOKEN", "FORGEJO_USER_AGENT"]
+install = """
+RUN apt-get update && apt-get install -y golang-go ca-certificates && \
+    git clone --depth 1 https://github.com/goern/forgejo-mcp.git /tmp/forgejo-mcp && \
+    cd /tmp/forgejo-mcp && \
+    go build -o /usr/local/bin/forgejo-mcp . && \
+    mkdir -p /root/.codex /root/.gemini && \
+    printf '%s\\n' \
+      '[mcp_servers.forgejo]' \
+      'command = "/bin/bash"' \
+      'args = ["-lc", "exec /usr/local/bin/forgejo-mcp --transport stdio --url \\"${FORGEJO_URL:-https://codeberg.org}\\""]' \
+      > /root/.codex/config.toml && \
+    printf '%s\\n' \
+      '{' \
+      '  "mcpServers": {' \
+      '    "forgejo": {' \
+      '      "command": "/bin/bash",' \
+      '      "args": ["-lc", "exec /usr/local/bin/forgejo-mcp --transport stdio --url \\"${FORGEJO_URL:-https://codeberg.org}\\""]' \
+      '    }' \
+      '  }' \
+      '}' \
+      > /root/.gemini/settings.json && \
+    rm -rf /tmp/forgejo-mcp /var/lib/apt/lists/*
+"""

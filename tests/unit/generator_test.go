@@ -74,6 +74,25 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
 }
 
+func TestDockerfileGenerationForgejoMCPPreset(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/forgejo-mcp.toml")
+	assert.NoError(t, err)
+	err = list.ResolvePresets("../../presets/tools")
+	assert.NoError(t, err)
+
+	cfg := config.Config{
+		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		ToolList: list,
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, dockerfile, "apt-get install -y git")
+	assert.Contains(t, dockerfile, "git clone --depth 1 https://github.com/goern/forgejo-mcp.git")
+	assert.Contains(t, dockerfile, "go build -o /usr/local/bin/forgejo-mcp .")
+	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
+	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+}
+
 func TestDockerComposeGeneration(t *testing.T) {
 	cfg := config.Config{
 		Docker: config.DockerConf{
