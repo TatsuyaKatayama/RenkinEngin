@@ -38,6 +38,7 @@ renkin start
 - `codex`: Codex CLI (Node.js v24)
 
 ### 解析ツール
+- `git`: Git CLI（`GIT_USER_NAME`, `GIT_USER_EMAIL` をコンテナへ継承）
 - `openfoam2512`: 流体解析（Ubuntu 24.04 対応）
 - `openmodelica410`: 物理モデリング（MSL v4.1.0 搭載）
 - `python-post`: 高速解析環境（foamlib, DyMat, Optuna, pandas 等）

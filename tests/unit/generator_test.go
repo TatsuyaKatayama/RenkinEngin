@@ -119,6 +119,35 @@ func TestEnvGenerationCodex(t *testing.T) {
 	assert.Contains(t, env, "OPENAI_API_KEY=")
 }
 
+func TestEnvGenerationToolEnvironment(t *testing.T) {
+	cfg := config.Config{
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{Name: "git", Type: "shell", Environment: []string{"GIT_USER_NAME", "GIT_USER_EMAIL"}},
+			},
+		},
+	}
+	env, err := generator.GenerateEnv(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, env, "GIT_USER_NAME=")
+	assert.Contains(t, env, "GIT_USER_EMAIL=")
+}
+
+func TestDockerComposeGenerationToolEnvironment(t *testing.T) {
+	cfg := config.Config{
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{Name: "git", Type: "shell", Environment: []string{"GIT_USER_NAME", "GIT_USER_EMAIL"}},
+			},
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "environment:")
+	assert.Contains(t, compose, "- GIT_USER_NAME")
+	assert.Contains(t, compose, "- GIT_USER_EMAIL")
+}
+
 func TestDockerComposeGenerationCodexBrowser(t *testing.T) {
 	cfg := config.Config{
 		Docker: config.DockerConf{},

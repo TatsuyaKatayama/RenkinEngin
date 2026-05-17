@@ -34,6 +34,12 @@ const dockerComposeTemplate = `services:
     stdin_open: true
     tty: true
     env_file: .env
+{{- if .EnvKeys}}
+    environment:
+{{- range .EnvKeys}}
+      - {{.}}
+{{- end}}
+{{- end}}
 {{if .LLM}}{{if .LLM.Ports}}
     ports:
 {{- range .LLM.Ports}}
@@ -106,6 +112,7 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 
 	data := GeneratorData{
 		Config:      cfg,
+		EnvKeys:     collectEnvKeys(cfg),
 		ProxyKeys:   getActiveProxyKeys(),
 		ExtraMounts: make(map[string][]config.Mount),
 	}
@@ -136,18 +143,7 @@ func GenerateEnv(cfg config.Config) (string, error) {
 		return "", err
 	}
 
-	var envKeys []string
-	if cfg.LLM != nil && cfg.LLM.AuthMode != "browser" {
-		envKeys = append(envKeys, cfg.LLM.GetEnvKeys()...)
-	}
-	// Add proxy keys to .env as well
-	envKeys = append(envKeys, getActiveProxyKeys()...)
-
-	// Add tool environment keys to .env
-	for _, t := range cfg.ToolList.Tools {
-		envKeys = append(envKeys, t.Environment...)
-	}
-
+	envKeys := collectEnvKeys(cfg)
 	if len(envKeys) == 0 {
 		return "", nil
 	}
@@ -163,4 +159,26 @@ func GenerateEnv(cfg config.Config) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func collectEnvKeys(cfg config.Config) []string {
+	var envKeys []string
+	if cfg.LLM != nil && cfg.LLM.AuthMode != "browser" {
+		envKeys = append(envKeys, cfg.LLM.GetEnvKeys()...)
+	}
+	envKeys = append(envKeys, getActiveProxyKeys()...)
+	for _, t := range cfg.ToolList.Tools {
+		envKeys = append(envKeys, t.Environment...)
+	}
+
+	seen := make(map[string]bool)
+	var uniqueKeys []string
+	for _, key := range envKeys {
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniqueKeys = append(uniqueKeys, key)
+	}
+	return uniqueKeys
 }

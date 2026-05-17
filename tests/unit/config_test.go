@@ -141,6 +141,18 @@ install = "RUN echo foam-preset"
 	assert.Equal(t, "openfoam2512", toolList2.Tools[0].Name)
 }
 
+func TestGitToolPreset(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/git.toml")
+	assert.NoError(t, err)
+	assert.Len(t, list.Tools, 1)
+
+	tool := list.Tools[0]
+	assert.Equal(t, "git", tool.Name)
+	assert.Equal(t, "shell", tool.Type)
+	assert.Contains(t, tool.Install, "apt-get install -y git")
+	assert.ElementsMatch(t, []string{"GIT_USER_NAME", "GIT_USER_EMAIL"}, tool.Environment)
+}
+
 func TestLLMTypeIdentification(t *testing.T) {
 	tests := []struct {
 		cmd      string
