@@ -153,6 +153,32 @@ func TestGitToolPreset(t *testing.T) {
 	assert.ElementsMatch(t, []string{"GIT_USER_NAME", "GIT_USER_EMAIL"}, tool.Environment)
 }
 
+func TestMCPServerGitToolPreset(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/mcp-server-git.toml")
+	assert.NoError(t, err)
+	assert.Len(t, list.Tools, 2)
+
+	assert.Equal(t, "git", list.Tools[0].Preset)
+
+	tool := list.Tools[1]
+	assert.Equal(t, "mcp-server-git", tool.Name)
+	assert.Equal(t, "shell", tool.Type)
+	assert.Contains(t, tool.Install, "uv pip install --system --break-system-packages mcp-server-git")
+	assert.Contains(t, tool.Install, "ln -s /root/.local/bin/uv /usr/local/bin/uv")
+	assert.Contains(t, tool.Install, "/root/.codex/config.toml")
+	assert.Contains(t, tool.Install, "/root/.gemini/settings.json")
+	assert.Contains(t, tool.Install, `args = ["--repository", "/workspace"]`)
+}
+
+func TestMCPServerGitToolPresetResolution(t *testing.T) {
+	list := config.ToolList{Tools: []config.Tool{{Preset: "mcp-server-git"}}}
+	err := list.ResolvePresets("../../presets/tools")
+	assert.NoError(t, err)
+	assert.Len(t, list.Tools, 2)
+	assert.Equal(t, "git", list.Tools[0].Name)
+	assert.Equal(t, "mcp-server-git", list.Tools[1].Name)
+}
+
 func TestLLMTypeIdentification(t *testing.T) {
 	tests := []struct {
 		cmd      string

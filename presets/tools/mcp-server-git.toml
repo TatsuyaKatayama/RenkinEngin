@@ -1,0 +1,29 @@
+[[tool]]
+preset = "git"
+
+[[tool]]
+name = "mcp-server-git"
+type = "shell"
+install = """
+RUN apt-get update && apt-get install -y python3 python-is-python3 python3-setuptools curl ca-certificates && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv pip install --system --break-system-packages mcp-server-git && \
+    ln -s /root/.local/bin/uv /usr/local/bin/uv && \
+    mkdir -p /root/.codex /root/.gemini && \
+    printf '%s\\n' \
+      '[mcp_servers.git]' \
+      'command = "/usr/local/bin/mcp-server-git"' \
+      'args = ["--repository", "/workspace"]' \
+      > /root/.codex/config.toml && \
+    printf '%s\\n' \
+      '{' \
+      '  "mcpServers": {' \
+      '    "git": {' \
+      '      "command": "/usr/local/bin/mcp-server-git",' \
+      '      "args": ["--repository", "/workspace"]' \
+      '    }' \
+      '  }' \
+      '}' \
+      > /root/.gemini/settings.json && \
+    rm -rf /var/lib/apt/lists/*
+"""

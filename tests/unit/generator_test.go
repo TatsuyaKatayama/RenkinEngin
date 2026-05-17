@@ -54,6 +54,26 @@ func TestDockerfileGenerationNoTools(t *testing.T) {
 	assert.Contains(t, dockerfile, "WORKDIR /workspace")
 }
 
+func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/mcp-server-git.toml")
+	assert.NoError(t, err)
+	err = list.ResolvePresets("../../presets/tools")
+	assert.NoError(t, err)
+
+	cfg := config.Config{
+		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		ToolList: list,
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, dockerfile, "apt-get install -y git")
+	assert.Contains(t, dockerfile, "curl -LsSf https://astral.sh/uv/install.sh | sh")
+	assert.Contains(t, dockerfile, "uv pip install --system --break-system-packages mcp-server-git")
+	assert.Contains(t, dockerfile, "mcp-server-git")
+	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
+	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+}
+
 func TestDockerComposeGeneration(t *testing.T) {
 	cfg := config.Config{
 		Docker: config.DockerConf{
