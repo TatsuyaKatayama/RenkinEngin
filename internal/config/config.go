@@ -79,8 +79,10 @@ func LoadToolList(path string) (ToolList, error) {
 
 func (tl *ToolList) ResolvePresets(presetsDir string) error {
 	var resolvedTools []Tool
+	seenNames := make(map[string]bool)
 
 	for _, t := range tl.Tools {
+		var toolsToResolve []Tool
 		if t.Preset != "" {
 			presetPath := filepath.Join(presetsDir, t.Preset+".toml")
 			if _, err := os.Stat(presetPath); os.IsNotExist(err) {
@@ -96,7 +98,6 @@ func (tl *ToolList) ResolvePresets(presetsDir string) error {
 				return fmt.Errorf("preset %s contains no tools", t.Preset)
 			}
 
-			// Add all tools from preset
 			for _, pt := range presetTools.Tools {
 				// Use preset tool as base, override with specific tool settings
 				if t.Name != "" { pt.Name = t.Name }
@@ -104,15 +105,23 @@ func (tl *ToolList) ResolvePresets(presetsDir string) error {
 				if t.Install != "" { pt.Install = t.Install }
 				if t.Image != "" { pt.Image = t.Image }
 				if t.Port != 0 { pt.Port = t.Port }
-				resolvedTools = append(resolvedTools, pt)
+				toolsToResolve = append(toolsToResolve, pt)
 			}
 		} else {
-			// Direct tool definition
-			resolvedTools = append(resolvedTools, t)
+			toolsToResolve = append(toolsToResolve, t)
+		}
+
+		for _, rt := range toolsToResolve {
+			if seenNames[rt.Name] {
+				return fmt.Errorf("duplicate tool name: %s", rt.Name)
+			}
+			seenNames[rt.Name] = true
+			resolvedTools = append(resolvedTools, rt)
 		}
 	}
 
 	tl.Tools = resolvedTools
+	// ... (Validation remains same)
 
 	// Validation
 	for _, t := range tl.Tools {

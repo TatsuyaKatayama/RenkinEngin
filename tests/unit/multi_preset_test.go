@@ -9,30 +9,60 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResolveMultiplePresets(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "renkin-multi-preset-test")
+func TestResolvePresetsScenarios(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-scenarios-test")
 	defer os.RemoveAll(tmpDir)
-
 	presetsDir := filepath.Join(tmpDir, "presets")
 	os.MkdirAll(presetsDir, 0755)
 
-	// Create two presets
-	os.WriteFile(filepath.Join(presetsDir, "tool-a.toml"), []byte("[[tool]]\nname=\"a\"\ntype=\"shell\"\ninstall=\"RUN a\""), 0644)
-	os.WriteFile(filepath.Join(presetsDir, "tool-b.toml"), []byte("[[tool]]\nname=\"b\"\ntype=\"shell\"\ninstall=\"RUN b\""), 0644)
+	os.WriteFile(filepath.Join(presetsDir, "p1.toml"), []byte("[[tool]]\nname=\"tool-p1\"\ntype=\"shell\"\ninstall=\"RUN p1\""), 0644)
+	os.WriteFile(filepath.Join(presetsDir, "p2.toml"), []byte("[[tool]]\nname=\"tool-p2\"\ntype=\"shell\"\ninstall=\"RUN p2\""), 0644)
 
-	// Tool list using multiple presets
-	toolList := config.ToolList{
-		Tools: []config.Tool{
-			{Preset: "tool-a"},
-			{Preset: "tool-b"},
-			{Name: "c", Type: "shell", Install: "RUN c"},
-		},
-	}
+	t.Run("Preset1 + Preset2 (Normal)", func(t *testing.T) {
+		tl := config.ToolList{Tools: []config.Tool{{Preset: "p1"}, {Preset: "p2"}}}
+		err := tl.ResolvePresets(presetsDir)
+		assert.NoError(t, err)
+		assert.Len(t, tl.Tools, 2)
+		assert.Equal(t, "tool-p1", tl.Tools[0].Name)
+		assert.Equal(t, "tool-p2", tl.Tools[1].Name)
+	})
 
-	err := toolList.ResolvePresets(presetsDir)
-	assert.NoError(t, err)
-	assert.Len(t, toolList.Tools, 3)
-	assert.Equal(t, "a", toolList.Tools[0].Name)
-	assert.Equal(t, "b", toolList.Tools[1].Name)
-	assert.Equal(t, "c", toolList.Tools[2].Name)
+	t.Run("Preset1 + Preset1 (Duplicate Error)", func(t *testing.T) {
+		tl := config.ToolList{Tools: []config.Tool{{Preset: "p1"}, {Preset: "p1"}}}
+		err := tl.ResolvePresets(presetsDir)
+		assert.Error(t, err)
+	})
+
+	t.Run("Preset1 + Direct (Multiple)", func(t *testing.T) {
+		tl := config.ToolList{
+			Tools: []config.Tool{
+				{Preset: "p1"},
+				{Name: "direct", Type: "shell", Install: "RUN direct"},
+			},
+		}
+		err := tl.ResolvePresets(presetsDir)
+		assert.NoError(t, err)
+		assert.Len(t, tl.Tools, 2)
+		assert.Equal(t, "tool-p1", tl.Tools[0].Name)
+		assert.Equal(t, "direct", tl.Tools[1].Name)
+	})
+
+	t.Run("Preset1 + Install (Override)", func(t *testing.T) {
+		tl := config.ToolList{Tools: []config.Tool{{Preset: "p1", Install: "RUN p1-override"}}}
+		err := tl.ResolvePresets(presetsDir)
+		assert.NoError(t, err)
+		assert.Equal(t, "RUN p1-override", tl.Tools[0].Install)
+	})
+
+    t.Run("Direct + Direct", func(t *testing.T) {
+		tl := config.ToolList{
+			Tools: []config.Tool{
+				{Name: "d1", Type: "shell", Install: "RUN d1"},
+				{Name: "d2", Type: "shell", Install: "RUN d2"},
+			},
+		}
+		err := tl.ResolvePresets(presetsDir)
+		assert.NoError(t, err)
+		assert.Len(t, tl.Tools, 2)
+	})
 }

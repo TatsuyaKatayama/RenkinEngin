@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/docker"
@@ -15,7 +16,7 @@ import (
 var (
 	dockerPath string
 	llmPath    string
-	toolsPath  string
+	toolsPath  []string
 	skillsPath string
 )
 
@@ -31,7 +32,7 @@ func main() {
 
 	assignCmd.Flags().StringVar(&dockerPath, "docker", "", "Docker infra config file")
 	assignCmd.Flags().StringVar(&llmPath, "llm", "", "LLM config file or preset name")
-	assignCmd.Flags().StringVar(&toolsPath, "tools", "", "Tool list file")
+	assignCmd.Flags().StringSliceVar(&toolsPath, "tools", []string{}, "Comma-separated list of tool presets or file paths")
 	assignCmd.Flags().StringVar(&skillsPath, "skills", "", "LLM instructions file")
 
 	var startCmd = &cobra.Command{
@@ -90,10 +91,10 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if toolsPath == "" {
+	if len(toolsPath) == 0 {
 		p := filepath.Join(targetDir, "tool_list.toml")
 		if _, err := os.Stat(p); err == nil {
-			toolsPath = p
+			toolsPath = []string{p}
 		}
 	}
 
@@ -139,23 +140,31 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	}
 
 	var tList config.ToolList
-	if toolsPath != "" {
-		tList, err = config.LoadToolList(toolsPath)
-		if err != nil {
-			return err
+	// 3. Resolve tool inputs
+	presetsDir := "presets/tools"
+	if _, err := os.Stat(presetsDir); os.IsNotExist(err) {
+		if exePath, err := os.Executable(); err == nil {
+			presetsDir = filepath.Join(filepath.Dir(exePath), "presets/tools")
 		}
+	}
 
-		// Resolve tool presets
-		presetsDir := "presets/tools"
-		if _, err := os.Stat(presetsDir); os.IsNotExist(err) {
-			if exePath, err := os.Executable(); err == nil {
-				presetsDir = filepath.Join(filepath.Dir(exePath), "presets/tools")
+	for _, input := range toolsPath {
+		var list config.ToolList
+		if _, err := os.Stat(input); err == nil {
+			// It's a file path
+			list, err = config.LoadToolList(input)
+			if err != nil {
+				return err
 			}
+		} else {
+			// Treat as preset name
+			list = config.ToolList{Tools: []config.Tool{{Preset: input}}}
 		}
+		tList.Tools = append(tList.Tools, list.Tools...)
+	}
 
-		if err := tList.ResolvePresets(presetsDir); err != nil {
-			return fmt.Errorf("failed to resolve presets: %v", err)
-		}
+	if err := tList.ResolvePresets(presetsDir); err != nil {
+		return fmt.Errorf("failed to resolve presets: %v", err)
 	}
 
 	cfg := config.Config{
