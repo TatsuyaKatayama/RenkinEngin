@@ -40,6 +40,7 @@ const dockerComposeTemplate = `services:
       - "{{.}}"
 {{- end}}
 {{end}}{{end}}
+{{if or .Docker.Mounts (and .LLM (eq .LLM.AuthMode "browser"))}}
     volumes:
 {{- range .Docker.Mounts}}
       - {{.Host}}:{{.Container}}
@@ -49,6 +50,7 @@ const dockerComposeTemplate = `services:
       - {{.Host}}:{{.Container}}
 {{- end}}
 {{- end}}{{- end}}
+{{- end}}
 
 {{- range .ToolList.Tools}}{{if eq .Type "mcp"}}
   {{.Name}}:

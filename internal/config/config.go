@@ -78,7 +78,9 @@ func LoadToolList(path string) (ToolList, error) {
 }
 
 func (tl *ToolList) ResolvePresets(presetsDir string) error {
-	for i, t := range tl.Tools {
+	var resolvedTools []Tool
+
+	for _, t := range tl.Tools {
 		if t.Preset != "" {
 			presetPath := filepath.Join(presetsDir, t.Preset+".toml")
 			if _, err := os.Stat(presetPath); os.IsNotExist(err) {
@@ -94,31 +96,31 @@ func (tl *ToolList) ResolvePresets(presetsDir string) error {
 				return fmt.Errorf("preset %s contains no tools", t.Preset)
 			}
 
-			// Merge preset content into the tool definition
-			pTool := presetTools.Tools[0]
-			if tl.Tools[i].Name == "" {
-				tl.Tools[i].Name = pTool.Name
+			// Add all tools from preset
+			for _, pt := range presetTools.Tools {
+				// Use preset tool as base, override with specific tool settings
+				if t.Name != "" { pt.Name = t.Name }
+				if t.Type != "" { pt.Type = t.Type }
+				if t.Install != "" { pt.Install = t.Install }
+				if t.Image != "" { pt.Image = t.Image }
+				if t.Port != 0 { pt.Port = t.Port }
+				resolvedTools = append(resolvedTools, pt)
 			}
-			if tl.Tools[i].Type == "" {
-				tl.Tools[i].Type = pTool.Type
-			}
-			if tl.Tools[i].Install == "" {
-				tl.Tools[i].Install = pTool.Install
-			}
-			if tl.Tools[i].Image == "" {
-				tl.Tools[i].Image = pTool.Image
-			}
-			if tl.Tools[i].Port == 0 {
-				tl.Tools[i].Port = pTool.Port
-			}
+		} else {
+			// Direct tool definition
+			resolvedTools = append(resolvedTools, t)
 		}
+	}
 
-		// Validation after resolution
-		if tl.Tools[i].Type == "shell" && tl.Tools[i].Install == "" {
-			return fmt.Errorf("tool %s: install is required for shell type", tl.Tools[i].Name)
+	tl.Tools = resolvedTools
+
+	// Validation
+	for _, t := range tl.Tools {
+		if t.Type == "shell" && t.Install == "" {
+			return fmt.Errorf("tool %s: install is required for shell type", t.Name)
 		}
-		if tl.Tools[i].Type == "mcp" && (tl.Tools[i].Image == "" || tl.Tools[i].Port == 0) {
-			return fmt.Errorf("tool %s: image and port are required for mcp type", tl.Tools[i].Name)
+		if t.Type == "mcp" && (t.Image == "" || t.Port == 0) {
+			return fmt.Errorf("tool %s: image and port are required for mcp type", t.Name)
 		}
 	}
 	return nil
