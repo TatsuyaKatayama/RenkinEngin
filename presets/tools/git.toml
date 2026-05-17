@@ -1,0 +1,8 @@
+[[tool]]
+name = "git"
+type = "shell"
+environment = ["GIT_USER_NAME", "GIT_USER_EMAIL"]
+install = """
+RUN apt-get update && apt-get install -y git && \
+    rm -rf /var/lib/apt/lists/*
+"""

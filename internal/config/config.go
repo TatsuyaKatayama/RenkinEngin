@@ -27,12 +27,13 @@ type LLMConf struct {
 }
 
 type Tool struct {
-	Name    string `toml:"name"`
-	Type    string `toml:"type"`
-	Preset  string `toml:"preset"`  // New field
-	Install string `toml:"install"` // For shell type
-	Image   string `toml:"image"`   // For mcp type
-	Port    int    `toml:"port"`    // For mcp type
+	Name        string   `toml:"name"`
+	Type        string   `toml:"type"`
+	Preset      string   `toml:"preset"`
+	Install     string   `toml:"install"`
+	Image       string   `toml:"image"`
+	Port        int      `toml:"port"`
+	Environment []string `toml:"environment"`
 }
 
 type ToolList struct {
@@ -105,6 +106,8 @@ func (tl *ToolList) ResolvePresets(presetsDir string) error {
 				if t.Install != "" { pt.Install = t.Install }
 				if t.Image != "" { pt.Image = t.Image }
 				if t.Port != 0 { pt.Port = t.Port }
+				// Append Environment
+				pt.Environment = append(pt.Environment, t.Environment...)
 				toolsToResolve = append(toolsToResolve, pt)
 			}
 		} else {

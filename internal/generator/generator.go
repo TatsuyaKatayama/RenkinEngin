@@ -143,6 +143,11 @@ func GenerateEnv(cfg config.Config) (string, error) {
 	// Add proxy keys to .env as well
 	envKeys = append(envKeys, getActiveProxyKeys()...)
 
+	// Add tool environment keys to .env
+	for _, t := range cfg.ToolList.Tools {
+		envKeys = append(envKeys, t.Environment...)
+	}
+
 	if len(envKeys) == 0 {
 		return "", nil
 	}
