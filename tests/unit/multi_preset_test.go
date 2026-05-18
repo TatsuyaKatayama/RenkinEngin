@@ -28,10 +28,12 @@ func TestResolvePresetsScenarios(t *testing.T) {
 		assert.Equal(t, "tool-p2", tl.Tools[1].Name)
 	})
 
-	t.Run("Preset1 + Preset1 (Duplicate Error)", func(t *testing.T) {
+	t.Run("Preset1 + Preset1 (Deduplication)", func(t *testing.T) {
 		tl := config.ToolList{Tools: []config.Tool{{Preset: "p1"}, {Preset: "p1"}}}
 		err := tl.ResolvePresets(presetsDir)
-		assert.Error(t, err)
+		assert.NoError(t, err)
+		assert.Len(t, tl.Tools, 1)
+		assert.Equal(t, "tool-p1", tl.Tools[0].Name)
 	})
 
 	t.Run("Preset1 + Direct (Multiple)", func(t *testing.T) {

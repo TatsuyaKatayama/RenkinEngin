@@ -85,15 +85,16 @@ func (tl *ToolList) ResolvePresets(presetsDir string) error {
 		return err
 	}
 
+	var uniqueTools []Tool
 	seenNames := make(map[string]bool)
 	for _, t := range resolvedTools {
-		if seenNames[t.Name] {
-			return fmt.Errorf("duplicate tool name: %s", t.Name)
+		if !seenNames[t.Name] {
+			uniqueTools = append(uniqueTools, t)
+			seenNames[t.Name] = true
 		}
-		seenNames[t.Name] = true
 	}
 
-	tl.Tools = resolvedTools
+	tl.Tools = uniqueTools
 	return tl.validate()
 }
 

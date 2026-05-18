@@ -259,6 +259,49 @@ func TestLLMTypeIdentification(t *testing.T) {
 	}
 }
 
+func TestResolveDuplicatePresets(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-dup-test")
+	defer os.RemoveAll(tmpDir)
+
+	presetsDir := filepath.Join(tmpDir, "presets")
+	os.MkdirAll(presetsDir, 0755)
+
+	// Create 'git' preset
+	gitContent := `
+[[tool]]
+name = "git"
+type = "shell"
+install = "RUN apt-get install git"
+`
+	os.WriteFile(filepath.Join(presetsDir, "git.toml"), []byte(gitContent), 0644)
+
+	// Create 'forgejo' preset which includes 'git'
+	forgejoContent := `
+[[tool]]
+preset = "git"
+
+[[tool]]
+name = "forgejo"
+type = "shell"
+install = "RUN echo forgejo"
+`
+	os.WriteFile(filepath.Join(presetsDir, "forgejo.toml"), []byte(forgejoContent), 0644)
+
+	// User specifies both 'git' and 'forgejo' (which includes 'git')
+	toolList := config.ToolList{
+		Tools: []config.Tool{
+			{Preset: "git"},
+			{Preset: "forgejo"},
+		},
+	}
+
+	err := toolList.ResolvePresets(presetsDir)
+	assert.NoError(t, err) // This currently fails with "duplicate tool name: git"
+	assert.Len(t, toolList.Tools, 2)
+	assert.Equal(t, "git", toolList.Tools[0].Name)
+	assert.Equal(t, "forgejo", toolList.Tools[1].Name)
+}
+
 func TestCollectEnvKeys(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{
