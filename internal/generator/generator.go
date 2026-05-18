@@ -2,7 +2,6 @@ package generator
 
 import (
 	"bytes"
-	"os"
 	"text/template"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -63,6 +62,12 @@ const dockerComposeTemplate = `services:
     image: {{.Image}}
     ports:
       - "{{.Port}}:{{.Port}}"
+{{- if .Environment}}
+    environment:
+{{- range .Environment}}
+      - {{.}}
+{{- end}}
+{{- end}}
 {{- end}}{{end}}
 `
 
@@ -74,22 +79,6 @@ type GeneratorData struct {
 	EnvKeys     []string
 	ProxyKeys   []string
 	ExtraMounts map[string][]config.Mount
-}
-
-var proxyEnvNames = []string{
-	"HTTP_PROXY", "http_proxy",
-	"HTTPS_PROXY", "https_proxy",
-	"NO_PROXY", "no_proxy",
-}
-
-func getActiveProxyKeys() []string {
-	var keys []string
-	for _, name := range proxyEnvNames {
-		if os.Getenv(name) != "" {
-			keys = append(keys, name)
-		}
-	}
-	return keys
 }
 
 func GenerateDockerfile(cfg config.Config) (string, error) {
@@ -112,8 +101,8 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 
 	data := GeneratorData{
 		Config:      cfg,
-		EnvKeys:     collectEnvKeys(cfg),
-		ProxyKeys:   getActiveProxyKeys(),
+		EnvKeys:     cfg.CollectEnvKeys(),
+		ProxyKeys:   config.GetActiveProxyKeys(),
 		ExtraMounts: make(map[string][]config.Mount),
 	}
 
@@ -143,7 +132,7 @@ func GenerateEnv(cfg config.Config) (string, error) {
 		return "", err
 	}
 
-	envKeys := collectEnvKeys(cfg)
+	envKeys := cfg.CollectEnvKeys()
 	if len(envKeys) == 0 {
 		return "", nil
 	}
@@ -159,26 +148,4 @@ func GenerateEnv(cfg config.Config) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
-}
-
-func collectEnvKeys(cfg config.Config) []string {
-	var envKeys []string
-	if cfg.LLM != nil && cfg.LLM.AuthMode != "browser" {
-		envKeys = append(envKeys, cfg.LLM.GetEnvKeys()...)
-	}
-	envKeys = append(envKeys, getActiveProxyKeys()...)
-	for _, t := range cfg.ToolList.Tools {
-		envKeys = append(envKeys, t.Environment...)
-	}
-
-	seen := make(map[string]bool)
-	var uniqueKeys []string
-	for _, key := range envKeys {
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		uniqueKeys = append(uniqueKeys, key)
-	}
-	return uniqueKeys
 }

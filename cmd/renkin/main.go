@@ -244,9 +244,10 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save metadata
-	meta := struct {
-		LLMCmd string `toml:"llm_cmd"`
-	}{LLMCmd: llmCmd}
+	meta := config.Metadata{
+		LLMCmd:  llmCmd,
+		EnvKeys: cfg.CollectEnvKeys(),
+	}
 	if err := config.SaveMetadata(filepath.Join(targetDir, ".renkin_metadata.toml"), meta); err != nil {
 		return err
 	}
@@ -260,20 +261,36 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("docker-compose.yml not found. Please run 'renkin assign' first")
 	}
 
+	metadataPath := ".renkin_metadata.toml"
+	var meta config.Metadata
+	if _, err := os.Stat(metadataPath); err == nil {
+		if err := config.LoadMetadata(metadataPath, &meta); err == nil {
+			var missing []string
+			for _, key := range meta.EnvKeys {
+				if os.Getenv(key) == "" {
+					missing = append(missing, key)
+				}
+			}
+			if len(missing) > 0 {
+				fmt.Printf("Warning: The following environment variables are not set in your host environment:\n")
+				for _, key := range missing {
+					fmt.Printf("  - %s\n", key)
+				}
+				if !utils.AskForConfirmation("Do you want to continue anyway?") {
+					return fmt.Errorf("aborted due to missing environment variables")
+				}
+			}
+		}
+	}
+
 	fmt.Println("Starting containers...")
 	if err := docker.ComposeUp(); err != nil {
 		return err
 	}
 
-	metadataPath := ".renkin_metadata.toml"
-	if _, err := os.Stat(metadataPath); err == nil {
-		var meta struct {
-			LLMCmd string `toml:"llm_cmd"`
-		}
-		if err := config.LoadMetadata(metadataPath, &meta); err == nil && meta.LLMCmd != "" {
-			fmt.Printf("Attaching to LLM agent with command: %s\n", meta.LLMCmd)
-			return docker.ExecAttach("llm-agent", meta.LLMCmd)
-		}
+	if meta.LLMCmd != "" {
+		fmt.Printf("Attaching to LLM agent with command: %s\n", meta.LLMCmd)
+		return docker.ExecAttach("llm-agent", meta.LLMCmd)
 	}
 
 	fmt.Println("Containers started. No LLM agent to attach.")

@@ -259,6 +259,36 @@ func TestLLMTypeIdentification(t *testing.T) {
 	}
 }
 
+func TestCollectEnvKeys(t *testing.T) {
+	cfg := config.Config{
+		LLM: &config.LLMConf{
+			Cmd:      "gemini",
+			AuthMode: "api_key",
+		},
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{Name: "t1", Environment: []string{"VAR1", "VAR2"}},
+				{Name: "t2", Environment: []string{"VAR2", "VAR3"}},
+			},
+		},
+	}
+	// Note: GetActiveProxyKeys might return some keys if run in an environment with proxy
+	keys := cfg.CollectEnvKeys()
+	assert.Contains(t, keys, "GEMINI_API_KEY")
+	assert.Contains(t, keys, "VAR1")
+	assert.Contains(t, keys, "VAR2")
+	assert.Contains(t, keys, "VAR3")
+	
+	// Check uniqueness
+	count := 0
+	for _, k := range keys {
+		if k == "VAR2" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count)
+}
+
 func TestSkillFileName(t *testing.T) {
 	tests := []struct {
 		cmd      string

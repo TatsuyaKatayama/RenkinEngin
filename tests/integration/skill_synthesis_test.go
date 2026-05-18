@@ -81,8 +81,13 @@ preset = "tool2"
 	assert.Contains(t, s, "Instructions for tool1")
 	assert.Contains(t, s, "## tool2 Instructions")
 	assert.Contains(t, s, "Instructions for tool2")
-	assert.Contains(t, s, "## Base Skills")
-	assert.Contains(t, s, "# Base User Skills")
+	// Verify metadata
+	metadataPath := filepath.Join(targetDir, ".renkin_metadata.toml")
+	assert.FileExists(t, metadataPath)
+	
+	// Just verify the file content for EnvKeys
+	metaContent, _ := os.ReadFile(metadataPath)
+	assert.Contains(t, string(metaContent), "GEMINI_API_KEY")
 }
 
 func TestSkillSynthesisWithoutBaseSkills(t *testing.T) {

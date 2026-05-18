@@ -240,7 +240,49 @@ func GetHomeDir() (string, error) {
 	return os.UserHomeDir()
 }
 
-func SaveMetadata(path string, meta interface{}) error {
+func (c *Config) CollectEnvKeys() []string {
+	var envKeys []string
+	if c.LLM != nil && c.LLM.AuthMode != "browser" {
+		envKeys = append(envKeys, c.LLM.GetEnvKeys()...)
+	}
+	envKeys = append(envKeys, GetActiveProxyKeys()...)
+	for _, t := range c.ToolList.Tools {
+		envKeys = append(envKeys, t.Environment...)
+	}
+
+	seen := make(map[string]bool)
+	var uniqueKeys []string
+	for _, key := range envKeys {
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniqueKeys = append(uniqueKeys, key)
+	}
+	return uniqueKeys
+}
+
+func GetActiveProxyKeys() []string {
+	proxyEnvNames := []string{
+		"HTTP_PROXY", "http_proxy",
+		"HTTPS_PROXY", "https_proxy",
+		"NO_PROXY", "no_proxy",
+	}
+	var keys []string
+	for _, name := range proxyEnvNames {
+		if os.Getenv(name) != "" {
+			keys = append(keys, name)
+		}
+	}
+	return keys
+}
+
+type Metadata struct {
+	LLMCmd  string   `toml:"llm_cmd"`
+	EnvKeys []string `toml:"env_keys"`
+}
+
+func SaveMetadata(path string, meta Metadata) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -249,7 +291,7 @@ func SaveMetadata(path string, meta interface{}) error {
 	return toml.NewEncoder(f).Encode(meta)
 }
 
-func LoadMetadata(path string, meta interface{}) error {
+func LoadMetadata(path string, meta *Metadata) error {
 	if _, err := toml.DecodeFile(path, meta); err != nil {
 		return err
 	}

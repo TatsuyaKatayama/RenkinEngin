@@ -225,6 +225,27 @@ func TestDockerComposeGenerationGeminiBrowser(t *testing.T) {
 	assert.Contains(t, compose, "/root/.config/gemini")
 }
 
+func TestDockerComposeGenerationMCPEnvironment(t *testing.T) {
+	cfg := config.Config{
+		ToolList: config.ToolList{
+			Tools: []config.Tool{
+				{
+					Name:        "mcp-tool",
+					Type:        "mcp",
+					Image:       "mcp-image",
+					Port:        1234,
+					Environment: []string{"MCP_VAR1"},
+				},
+			},
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "mcp-tool:")
+	assert.Contains(t, compose, "environment:")
+	assert.Contains(t, compose, "- MCP_VAR1")
+}
+
 func TestEnvGenerationOpencode(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{
