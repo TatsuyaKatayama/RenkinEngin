@@ -1,8 +1,8 @@
 # RenkinEngin テスト仕様書
 
-**バージョン**: 1.1.0
+**バージョン**: 1.1.1
 **作成日**: 2026-05-17  
-**対象**: spec_RenkinEngin_v1.1.0.md
+**対象**: spec_RenkinEngin_v1.1.1.md
 
 ---
 
