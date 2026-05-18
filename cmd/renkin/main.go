@@ -47,7 +47,14 @@ func main() {
 		RunE:  runEnd,
 	}
 
-	rootCmd.AddCommand(assignCmd, startCmd, endCmd)
+	var toolCmd = &cobra.Command{
+		Use:   "tool [preset_name|list]",
+		Short: "List tool presets or show installation details",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  runTool,
+	}
+
+	rootCmd.AddCommand(assignCmd, startCmd, endCmd, toolCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -300,4 +307,54 @@ func runStart(cmd *cobra.Command, args []string) error {
 func runEnd(cmd *cobra.Command, args []string) error {
 	fmt.Println("Stopping containers...")
 	return docker.ComposeDown()
+}
+
+func runTool(cmd *cobra.Command, args []string) error {
+	presetsDir := "presets/tools"
+	if _, err := os.Stat(presetsDir); os.IsNotExist(err) {
+		if exePath, err := os.Executable(); err == nil {
+			presetsDir = filepath.Join(filepath.Dir(exePath), "presets/tools")
+		}
+	}
+
+	if len(args) == 0 || args[0] == "list" {
+		files, err := os.ReadDir(presetsDir)
+		if err != nil {
+			return fmt.Errorf("failed to read presets directory: %v", err)
+		}
+
+		fmt.Println("Available tool presets:")
+		for _, f := range files {
+			if !f.IsDir() && filepath.Ext(f.Name()) == ".toml" {
+				fmt.Printf("  - %s\n", strings.TrimSuffix(f.Name(), ".toml"))
+			}
+		}
+		return nil
+	}
+
+	presetName := args[0]
+	tList, err := config.LoadToolList(filepath.Join(presetsDir, presetName+".toml"))
+	if err != nil {
+		return fmt.Errorf("failed to load preset %s: %v", presetName, err)
+	}
+
+	fmt.Printf("Details for tool preset: %s\n", presetName)
+	for _, t := range tList.Tools {
+		fmt.Printf("\n--- Tool: %s ---\n", t.Name)
+		if t.Preset != "" {
+			fmt.Printf("Base Preset: %s\n", t.Preset)
+		}
+		fmt.Printf("Type: %s\n", t.Type)
+		if t.Install != "" {
+			fmt.Printf("Installation:\n%s\n", t.Install)
+		}
+		if t.Instructions != "" {
+			fmt.Printf("Instructions:\n%s\n", t.Instructions)
+		}
+		if len(t.Environment) > 0 {
+			fmt.Printf("Environment Variables: %v\n", t.Environment)
+		}
+	}
+
+	return nil
 }
