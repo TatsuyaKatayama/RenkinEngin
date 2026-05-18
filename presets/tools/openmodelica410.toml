@@ -9,3 +9,8 @@ RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
     apt-get install -y omc omlibrary && \
     rm -rf /var/lib/apt/lists/*
 """
+instructions = """
+OpenModelica 4.1.0 is installed.
+Modelica Standard Library (MSL) 4.1.0 is available in /usr/lib/omlibrary/Modelica 4.1.0.
+To use it in your Modelica code, use 'import Modelica;'.
+"""
