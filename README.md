@@ -13,9 +13,23 @@ RenkinEngin は、LLMエージェントと解析ツールを組み合わせた D
 ## 🚀 クイックスタート
 
 ### 1. インストール
+
+#### Go 1.26.2 のインストール
+[mise](https://mise.jdx.dev/) を使用してインストールすることを推奨します。
+```bash
+mise use -g go@1.26.2
+```
+
+#### RenkinEngin のビルド
 ```bash
 go build -o renkin ./cmd/renkin
-export PATH=$PATH:$(pwd)
+```
+
+#### パスの設定
+`renkin` コマンドをどこからでも実行できるように、`~/.bashrc` にパスを追加します。
+```bash
+echo "export PATH=\$PATH:$(pwd)" >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ### 2. 連勤の業務命令 (環境の構成)
