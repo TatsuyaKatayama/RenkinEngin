@@ -243,10 +243,8 @@ func runAssign(cmd *cobra.Command, args []string) error {
 			aggregatedSkills.WriteString("\n")
 		}
 
-		if aggregatedSkills.Len() > 0 {
-			if err := os.WriteFile(filepath.Join(workspaceDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
-				return err
-			}
+		if err := os.WriteFile(filepath.Join(workspaceDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
+			return err
 		}
 	}
 

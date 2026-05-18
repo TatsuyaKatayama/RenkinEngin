@@ -151,3 +151,50 @@ preset = "tool1"
 	assert.Contains(t, s, "Instructions for tool1")
 	assert.NotContains(t, s, "## Base Skills")
 }
+
+func TestEmptySkillSynthesis(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-empty-skill-test")
+	defer os.RemoveAll(tmpDir)
+	
+	binPath := filepath.Join(tmpDir, "renkin")
+	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
+	buildCmd.Dir = "../../"
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build renkin: %v", err)
+	}
+
+	dockerConf := `base_image = "ubuntu:24.04"`
+	llmConf := `cmd = "gemini"
+install = "RUN echo llm"
+`
+	// No tools with instructions, no skills.md
+	toolList := `[[tool]]
+name = "dummy"
+type = "shell"
+install = "RUN echo dummy"
+`
+
+	fixtureDir := filepath.Join(tmpDir, "fixtures")
+	os.MkdirAll(fixtureDir, 0755)
+	os.WriteFile(filepath.Join(fixtureDir, "docker.conf"), []byte(dockerConf), 0644)
+	os.WriteFile(filepath.Join(fixtureDir, "llm.conf"), []byte(llmConf), 0644)
+	os.WriteFile(filepath.Join(fixtureDir, "tool_list.toml"), []byte(toolList), 0644)
+
+	targetDir := filepath.Join(tmpDir, "target")
+	assignCmd := exec.Command(binPath, "assign", targetDir,
+		"--docker", filepath.Join(fixtureDir, "docker.conf"),
+		"--llm", filepath.Join(fixtureDir, "llm.conf"),
+		"--tools", filepath.Join(fixtureDir, "tool_list.toml"),
+	)
+	assignCmd.Dir = tmpDir
+	output, err := assignCmd.CombinedOutput()
+	assert.NoError(t, err, string(output))
+
+	// Verify synthesized skill file exists even if empty
+	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
+	assert.FileExists(t, skillFile)
+
+	content, err := os.ReadFile(skillFile)
+	assert.NoError(t, err)
+	assert.Empty(t, string(content))
+}
