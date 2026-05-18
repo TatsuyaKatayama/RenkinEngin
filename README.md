@@ -21,9 +21,15 @@ export PATH=$PATH:$(pwd)
 ### 2. 連勤の業務命令 (環境の構成)
 ターゲットディレクトリを指定して実行します。各オプションは省略すると、ディレクトリ内の設定ファイルや標準プリセットが自動適用されます。
 ```bash
-# 例: Gemini と Python解析環境を組み合わせて錬成
-renkin assign ./ --llm gemini --tools python-post
+# 例: Gemini と OpenFOAM、Python解析環境を組み合わせて錬成
+renkin assign ./ --llm gemini --tools openfoam2512,python-post
 ```
+
+`--tools` フラグにカンマ区切りで複数のツールを指定できます。
+
+#### 💡 スキル合成機能
+複数のツールを指定した場合、それぞれのプリセットに含まれる「使い方の手順（instructions）」が、自動的にエージェント用のスキルファイル（`GEMINI.md` や `CLAUDE.md`）に集約・合成されます。これにより、エージェントは起動直後からインストールされたツールの場所やライブラリの利用方法を把握した状態で自律作業を開始できます。
+
 
 ### 3. 労働開始 (環境起動 & アタッチ)
 ```bash
