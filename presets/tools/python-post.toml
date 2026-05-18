@@ -16,3 +16,7 @@ RUN apt-get update && apt-get install -y python3 python-is-python3 python3-setup
     ln -s /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/*
 """
+instructions = """
+Use python3 for post-processing.
+Available libraries: foamlib, DyMat, numpy, scipy, matplotlib, pandas, optuna.
+"""

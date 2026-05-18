@@ -9,3 +9,8 @@ RUN apt-get update && apt-get install -y curl ca-certificates && \
     echo "source /usr/lib/openfoam/openfoam2512/etc/bashrc" >> /etc/bash.bashrc && \
     rm -rf /var/lib/apt/lists/*
 """
+instructions = """
+OpenFOAM 2512 is installed.
+Tutorials are located in /usr/lib/openfoam/openfoam2512/tutorials.
+Source the bashrc before use: source /usr/lib/openfoam/openfoam2512/etc/bashrc
+"""

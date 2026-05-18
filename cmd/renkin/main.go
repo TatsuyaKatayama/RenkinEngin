@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/docker"
@@ -199,7 +200,7 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Create workspace and copy skills
+	// Create workspace and synthesize skills
 	workspaceDir := filepath.Join(targetDir, "workspace")
 	if err := utils.EnsureDir(workspaceDir); err != nil {
 		return err
@@ -208,12 +209,35 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	var llmCmd string
 	if lConf != nil {
 		llmCmd = lConf.Cmd
+		skillName, err := lConf.GetSkillFileName()
+		if err != nil {
+			return err
+		}
+
+		var aggregatedSkills strings.Builder
+
+		// 1. Add tool instructions
+		for _, t := range cfg.ToolList.Tools {
+			if t.Instructions != "" {
+				aggregatedSkills.WriteString(fmt.Sprintf("## %s Instructions\n", t.Name))
+				aggregatedSkills.WriteString(t.Instructions)
+				aggregatedSkills.WriteString("\n\n")
+			}
+		}
+
+		// 2. Add base skills from file if provided
 		if skillsPath != "" {
-			skillName, err := lConf.GetSkillFileName()
+			content, err := os.ReadFile(skillsPath)
 			if err != nil {
 				return err
 			}
-			if err := utils.CopyFile(skillsPath, filepath.Join(workspaceDir, skillName)); err != nil {
+			aggregatedSkills.WriteString("## Base Skills\n")
+			aggregatedSkills.Write(content)
+			aggregatedSkills.WriteString("\n")
+		}
+
+		if aggregatedSkills.Len() > 0 {
+			if err := os.WriteFile(filepath.Join(workspaceDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
 				return err
 			}
 		}

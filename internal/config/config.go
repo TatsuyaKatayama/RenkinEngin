@@ -27,13 +27,14 @@ type LLMConf struct {
 }
 
 type Tool struct {
-	Name        string   `toml:"name"`
-	Type        string   `toml:"type"`
-	Preset      string   `toml:"preset"`
-	Install     string   `toml:"install"`
-	Image       string   `toml:"image"`
-	Port        int      `toml:"port"`
-	Environment []string `toml:"environment"`
+	Name         string   `toml:"name"`
+	Type         string   `toml:"type"`
+	Preset       string   `toml:"preset"`
+	Install      string   `toml:"install"`
+	Instructions string   `toml:"instructions"`
+	Image        string   `toml:"image"`
+	Port         int      `toml:"port"`
+	Environment  []string `toml:"environment"`
 }
 
 type ToolList struct {
@@ -137,6 +138,7 @@ func hasToolOverrides(t Tool) bool {
 	return t.Name != "" ||
 		t.Type != "" ||
 		t.Install != "" ||
+		t.Instructions != "" ||
 		t.Image != "" ||
 		t.Port != 0 ||
 		len(t.Environment) > 0
@@ -169,6 +171,9 @@ func applyToolOverrides(pt *Tool, t Tool) {
 	if t.Install != "" {
 		pt.Install = t.Install
 	}
+	if t.Instructions != "" {
+		pt.Instructions = t.Instructions
+	}
 	if t.Image != "" {
 		pt.Image = t.Image
 	}
@@ -195,12 +200,7 @@ func (l *LLMConf) GetType() (string, error) {
 	if len(parts) == 0 {
 		return "", fmt.Errorf("invalid llm cmd")
 	}
-	switch parts[0] {
-	case "claude", "gemini", "codex", "opencode":
-		return parts[0], nil
-	default:
-		return "", fmt.Errorf("unknown llm type: %s", parts[0])
-	}
+	return parts[0], nil
 }
 
 func (l *LLMConf) GetSkillFileName() (string, error) {

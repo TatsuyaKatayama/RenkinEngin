@@ -207,6 +207,36 @@ func TestForgejoMCPToolPresetResolution(t *testing.T) {
 	assert.ElementsMatch(t, []string{"FORGEJO_URL", "FORGEJO_ACCESS_TOKEN", "FORGEJO_USER_AGENT"}, list.Tools[1].Environment)
 }
 
+func TestResolvePresetsWithInstructions(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-preset-instr-test")
+	defer os.RemoveAll(tmpDir)
+
+	presetsDir := filepath.Join(tmpDir, "presets")
+	os.MkdirAll(presetsDir, 0755)
+
+	// Create a dummy preset with instructions
+	presetContent := `
+[[tool]]
+name = "python-post"
+type = "shell"
+install = "RUN echo python"
+instructions = "Use python3."
+`
+	os.WriteFile(filepath.Join(presetsDir, "python-post.toml"), []byte(presetContent), 0644)
+
+	// Tool list using the preset
+	toolList := config.ToolList{
+		Tools: []config.Tool{
+			{Preset: "python-post"},
+		},
+	}
+
+	err := toolList.ResolvePresets(presetsDir)
+	assert.NoError(t, err)
+	assert.Equal(t, "python-post", toolList.Tools[0].Name)
+	assert.Equal(t, "Use python3.", toolList.Tools[0].Instructions)
+}
+
 func TestLLMTypeIdentification(t *testing.T) {
 	tests := []struct {
 		cmd      string
@@ -223,12 +253,8 @@ func TestLLMTypeIdentification(t *testing.T) {
 		t.Run(tt.cmd, func(t *testing.T) {
 			conf := config.LLMConf{Cmd: tt.cmd}
 			llmType, err := conf.GetType()
-			if tt.expected == "unknown" {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, llmType)
-			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, llmType)
 		})
 	}
 }
