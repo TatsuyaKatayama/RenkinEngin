@@ -125,9 +125,17 @@ environment = ["MY_CUSTOM_VAR"]
 
 ## 4. プロキシサポート
 
-ホスト環境に `HTTP_PROXY`, `HTTPS_PROXY` 等が設定されている場合、`renkin assign` は以下を自動的に行う。
-- Docker build 時の `--build-arg` への追加
+ホスト環境に `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` 等が設定されている場合、`renkin assign` は以下を自動的に行う。
+- Docker build 時の `--build-arg` への追加（`http_proxy`, `https_proxy`, `no_proxy` 等）
 - `llm-agent` サービスおよび各 MCP サービスの環境変数への追加
+
+### 4.1 NO_PROXY 設定の注意点
+
+コンテナ内のエージェントがホストOS上で動作しているサービス（例: Forgejo, NATS, データベース等）と通信する場合、その通信が外部プロキシを経由しないように `NO_PROXY` を適切に設定する必要がある。
+
+- **ホストIPの指定**: ホストの物理IPアドレス、または Docker のゲートウェイIP（通常 `172.17.0.1`）を `NO_PROXY` に含めること。
+- **推奨設定**: `localhost,127.0.0.1,172.17.0.1,host.docker.internal` およびホストの実際のIPアドレス。
+- **影響**: これが設定されていない場合、ローカルサービスへのリクエストが外部プロキシへ転送され、接続タイムアウトや 503 エラーが発生する原因となる。
 
 ---
 
