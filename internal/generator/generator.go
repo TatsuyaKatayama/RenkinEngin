@@ -33,8 +33,11 @@ const dockerComposeTemplate = `services:
     stdin_open: true
     tty: true
     env_file: .env
-{{- if .EnvKeys}}
+{{- if or .DefaultEnv .EnvKeys}}
     environment:
+{{- range .DefaultEnv}}
+      - {{.}}
+{{- end}}
 {{- range .EnvKeys}}
       - {{.}}
 {{- end}}
@@ -77,6 +80,7 @@ const envTemplate = `{{range .EnvKeys}}{{.}}=
 type GeneratorData struct {
 	config.Config
 	EnvKeys     []string
+	DefaultEnv  []string
 	ProxyKeys   []string
 	ExtraMounts map[string][]config.Mount
 }
@@ -102,8 +106,18 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 	data := GeneratorData{
 		Config:      cfg,
 		EnvKeys:     cfg.CollectEnvKeys(),
+		DefaultEnv:  []string{},
 		ProxyKeys:   config.GetActiveProxyKeys(),
 		ExtraMounts: make(map[string][]config.Mount),
+	}
+
+	if cfg.LLM != nil {
+		llmType, _ := cfg.LLM.GetType()
+		if llmType == "gemini" {
+			data.DefaultEnv = append(data.DefaultEnv, "GEMINI_TRUST_WORKSPACE=true")
+		} else if llmType == "codex" {
+			data.DefaultEnv = append(data.DefaultEnv, "CODEX_TRUST_WORKSPACE=true")
+		}
 	}
 
 	if cfg.LLM != nil && cfg.LLM.AuthMode == "browser" {

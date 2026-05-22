@@ -1,8 +1,11 @@
 cmd = "codex"
 auth_mode = "api_key"
 install = """
-RUN apt-get update && apt-get install -y curl ca-certificates && \
+RUN apt-get update && apt-get install -y curl ca-certificates git && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g @openai/codex
+    npm install -g @openai/codex && \
+    git config --global --add safe.directory /workspace && \
+    mkdir -p /root/.codex && \
+    echo '[[projects]]\npath = "/workspace"\ntrust_level = "trusted"' > /root/.codex/config.toml
 """

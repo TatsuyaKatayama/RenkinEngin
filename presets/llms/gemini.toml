@@ -1,8 +1,9 @@
 cmd = "gemini"
 auth_mode = "api_key"
 install = """
-RUN apt-get update && apt-get install -y curl ca-certificates && \
+RUN apt-get update && apt-get install -y curl ca-certificates git && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g @google/gemini-cli
+    npm install -g @google/gemini-cli && \
+    git config --global --add safe.directory /workspace
 """
