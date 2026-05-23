@@ -10,8 +10,9 @@ import (
 )
 
 type DockerConf struct {
-	BaseImage string  `toml:"base_image"`
-	Mounts    []Mount `toml:"mount"`
+	BaseImage    string  `toml:"base_image"`
+	Mounts       []Mount `toml:"mount"`
+	Instructions string  `toml:"instructions"`
 }
 
 type Mount struct {

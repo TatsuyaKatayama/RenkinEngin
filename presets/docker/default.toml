@@ -1,4 +1,5 @@
 base_image = "ubuntu:24.04"
+instructions = "Create a dedicated working directory with an appropriate name inside the '/workspace' directory and perform all tasks there."
 
 [[mount]]
 host = "./workspace"

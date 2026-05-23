@@ -223,7 +223,14 @@ func runAssign(cmd *cobra.Command, args []string) error {
 
 		var aggregatedSkills strings.Builder
 
-		// 1. Add tool instructions
+		// 1. Add docker instructions
+		if cfg.Docker.Instructions != "" {
+			aggregatedSkills.WriteString("## Environment Instructions\n")
+			aggregatedSkills.WriteString(cfg.Docker.Instructions)
+			aggregatedSkills.WriteString("\n\n")
+		}
+
+		// 2. Add tool instructions
 		for _, t := range cfg.ToolList.Tools {
 			if t.Instructions != "" {
 				aggregatedSkills.WriteString(fmt.Sprintf("## %s Instructions\n", t.Name))
@@ -232,7 +239,7 @@ func runAssign(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// 2. Add base skills from file if provided
+		// 3. Add base skills from file if provided
 		if skillsPath != "" {
 			content, err := os.ReadFile(skillsPath)
 			if err != nil {
