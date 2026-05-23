@@ -20,55 +20,60 @@ instructions = """
 Use python3 for post-processing.
 Available libraries: foamlib, DyMat, numpy, scipy, matplotlib, pandas, optuna.
 
+---
+
 # DyMat Usage Guide
 
 DyMat is a Python library for handling Modelica simulation result files (.mat).  
-No installation is required in this context. Below is a summary of the main class, methods, and properties.
+Below is a corrected summary of the main class, methods, and properties based on actual behavior.
 
----
 
 ## Core Class
 
 ### DyMat.DyMatFile
-Used to load and interact with simulation result files.
 
 ```
 from DyMat import DyMatFile
 
-# Load file
 res_mat = DyMatFile("simulation_result.mat")
 ```
 
----
 
-## Main Methods
+## Main Methods (Actual Behavior)
 
 ### `res_mat.names()`
-- Returns a list of available variable names.
-
-### `res_mat.description(name)`
-- Returns the description of the specified variable.
+- Returns a `dict_keys` object of available variable names (not a plain list).
+- You can still use: `if "varName" in res_mat.names(): ...`
+- Convert to list if needed:
+```
+var_list = list(res_mat.names())
+```
 
 ### `res_mat.data(name)`
-- Returns time series data for the specified variable.
-- Output: `(time, values)` tuple.
-- Both `time` and `values` are NumPy arrays.
+- Returns **only the values** as a 1D NumPy array.
+- Does **not** return `(time, values)`.
 
 ### `res_mat.abscissa(name)`
-- Returns the independent variable (usually time) as a NumPy array.
+- Returns a tuple (e.g., length 3).
+- The first element `[0]` is the NumPy array for the independent variable (usually time).
+- Typical usage:
+```
+time = res_mat.abscissa(name)[0]
+values = res_mat.data(name)
+```
 
 ### `res_mat.values(name)`
-- Returns only the values of the specified variable as a NumPy array.
+- This method does **not** exist.
+- Use `res_mat.data(name)` to get the values.
 
 ### `res_mat.size(name)`
 - Returns the number of data points for the specified variable.
 
----
 
 ## Properties
 
 ### `res_mat.fileName`
-- The name of the loaded file.
+- Name of the loaded file.
 
 ### `res_mat.nVariables`
 - Number of variables in the file.
@@ -76,29 +81,30 @@ res_mat = DyMatFile("simulation_result.mat")
 ### `res_mat.nRecords`
 - Number of records stored in the file.
 
+
+## Example Usage (Consistent with Actual Behavior)
+
+```
+from DyMat import DyMatFile
+import numpy as np
+
+res_mat = DyMatFile("simulation_result.mat")
+
+# Variable names (dict_keys)
+names = res_mat.names()
+print("Variables:", names)
+
+# Pick a variable name
+name = next(iter(names))
+
+# Time and values
+time = res_mat.abscissa(name)[0]   # NumPy array
+values = res_mat.data(name)        # NumPy 1D array
+
+print("Size:", res_mat.size(name))
+print("Mean value:", np.mean(values))
+```
+
 ---
 
-## Example Usage
-
-```
-# Get variable list
-variables = res_mat.names()
-
-# Description of the first variable
-print(res_mat.description(variables[0]))
-
-# Retrieve data (NumPy arrays)
-time, values = res_mat.data("engine.speed")
-
-# Values only (NumPy array)
-speed_values = res_mat.values("engine.speed")
-
-# Number of data points
-print(res_mat.size("engine.speed"))
-
-# NumPy operations
-import numpy as np
-mean_speed = np.mean(speed_values)
-print("Average speed:", mean_speed)
-```
 """

@@ -10,11 +10,15 @@ RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
     rm -rf /var/lib/apt/lists/*
 """
 instructions = """
+
+---
+
 # omc scripting guide (script-first, no TOC)
 
 ## Key points
 - Call setCommandLineOptions before simulate.
-- Specify output variables with simulate(..., outputVariables={...}); confirm flattened full names with getVariables first.
+- Use fileNamePrefix and outputFormat for result file naming and format in many OpenModelica environments.
+- Confirm variables and names from SimulationResult or by parsing output files (getVariables may be unavailable in some contexts).
 - Full output produces large result files; shorten stopTime or increase sampling interval when taking full output.
 - Many intermediate files are generated during translation/build; run in a dedicated working directory.
 
@@ -22,46 +26,47 @@ instructions = """
 1. Create a working directory (e.g., workdir).
 2. Call setCommandLineOptions to pass flags to OMC (before simulate).
 3. Load the model (loadFile / loadModel).
-4. Use getVariables / getComponentNames to confirm flattened names.
+4. Optionally run translateModel to perform translation/code generation.
 5. Run simulate and write results into the working directory.
+6. After simulation, inspect the returned SimulationResult record and/or parse the output file (.mat/.csv) to list variables and values; use external tools (Python, OMPython, scipy.io) if needed.
 
 ## Primary commands and roles
 - setCommandLineOptions(options)
   - Set OMC command-line options; affects translation and debug output; call before simulate.
 - loadFile("file.mo") / loadModel("Package")
-  - Load model files or packages.
+  - Load model files or packages. Load MSL with loadModel("Modelica").
 - translateModel(ModelName) / buildModel(ModelName)
   - Translate or build the model as needed.
-- getVariables("ModelName") / getComponentNames("ModelName")
-  - Retrieve variables and component flattened names.
 - simulate(ModelName, ...)
-  - Run simulation. Main arguments: startTime, stopTime, method, tolerance, outputVariables, resultFile, resultFormat.
+  - Run simulation. Common arguments: startTime, stopTime, method, tolerance, outputVariables (if supported), fileNamePrefix, outputFormat.
 - readSimulationResult / plot
-  - Load result files and perform simple plotting.
+  - Load result files and perform simple plotting; external parsing is common for automation.
 
-## simulate main arguments
+## simulate main arguments (practical)
 - startTime, stopTime: simulation start and stop times.
 - method: solver name (e.g., "dassl").
 - tolerance: numerical tolerance.
-- outputVariables: set of variables to include in results; use flattened full names.
-- resultFile: result filename (prefer working directory).
-- resultFormat: output format (mat, csv, etc.; support depends on environment).
+- outputVariables: set of variables to include in results (supported in some environments).
+- fileNamePrefix: result file prefix (e.g., "res" → res.mat).
+- outputFormat: output format ("mat", "csv", etc.).
+- Note: resultFile/resultFormat appear in some docs but may not be recognized; prefer fileNamePrefix/outputFormat in practice.
 
-## Output variable selection notes
-- Use flattened full names. For hierarchical models, specify Model.sub.var as returned by getVariables.
-- Array elements and index notation can be environment-dependent; verify with getVariables.
-- Omitting outputVariables typically yields many variables and large files.
+## Output variable selection and verification
+- Use flattened full names when specifying variables; hierarchical models may require Model.sub.var style names.
+- getVariables may not be available or may not work in all OMC contexts; rely on SimulationResult or parse output files to confirm variable names.
+- Array element notation and indexing can be environment-dependent; verify by inspecting output file headers or SimulationResult contents.
+- If outputVariables is unsupported in your environment, parse the produced result file to extract needed variables or re-run with appropriate options.
 
 ## File size and runtime management
-- For full-output debugging, shorten stopTime or increase sampling interval to limit file size and runtime.
-- After identifying needed variables, restrict output via outputVariables and re-run.
-- resultFormat affects size and compatibility: mat is binary and tool-friendly; csv is text and more portable.
+- Full-output runs produce large files; shorten stopTime or increase sampling interval when taking full output for debugging.
+- After identifying required variables, restrict output via outputVariables (if supported) and re-run.
+- outputFormat affects size and compatibility: "mat" is binary and tool-friendly; "csv" is text and more portable.
 
 ## Working directory practice
-- Create a dedicated working directory for each run (e.g., workdir).
-- Place resultFile, logs, and translation artifacts in the working directory for easier cleanup.
+- Create a dedicated working directory per run (e.g., workdir).
+- Place translation artifacts, logs, and result files under the working directory for easier cleanup.
 
-## Recommended MOS script example
+## Recommended MOS script example (use ``` to delimit code blocks)
 ```
 # Create working directory (use OS command)
 # Example: mkdir -p workdir
@@ -69,42 +74,40 @@ instructions = """
 # 1. Pass translation/debug options to OMC (call before simulate)
 setCommandLineOptions("-d=failtrace -d=stateselection");
 
-# 2.Load a specific version if needed
-loadModel("Modelica", {"4.1.0"});
+# 2. Load libraries and model
+loadModel("Modelica", {"4.1.0"}); # Load Modelica Standard Library
+loadFile("MyModel.mo");         # Load local model
 
-# 3. Load model
-loadFile("MyModel.mo");
-
-# 4. Translate if needed
+# 3. Translate if needed
 translateModel(MyModel);
 
-# 5. Get variable flattened names
-getVariables("MyModel");
-
-# 6. Run simulation (limit time for full output; write results to workdir)
+# 4. Run simulation using fileNamePrefix and outputFormat
 simulate(MyModel,
          startTime=0,
          stopTime=1,                       # shorten time when taking full output
          method="dassl",
          tolerance=1e-6,
-         outputVariables={"MyModel.x","MyModel.y"},
-         resultFile="workdir/res.mat",
-         resultFormat="mat");
+         fileNamePrefix="workdir/res",     # output file prefix
+         outputFormat="mat");              # output format
 ```
 
 ## Pre-run checklist
 - Created working directory.
 - Called setCommandLineOptions before simulate.
-- Confirmed flattened names with getVariables.
-- Set short stopTime when taking full output.
-- Pointed resultFile to the working directory.
+- Loaded required libraries (e.g., loadModel("Modelica")) and model files.
+- Planned short stopTime or coarse sampling for full-output debugging.
+- Set fileNamePrefix to place results in the working directory.
 
 ## Notes and caveats
-- Incorrect variable names yield missing data; verify with getVariables.
-- Over-restricting output may require re-simulation if additional variables are later needed.
-- OMC options and supported resultFormat values vary by OpenModelica version; consult the version-specific documentation.
+- Use fileNamePrefix/outputFormat in scripts because resultFile/resultFormat may not be recognized in some OpenModelica environments.
+- getVariables may be unavailable; rely on SimulationResult or output-file parsing to confirm variable names.
+- Incorrect variable names cause missing data; verify headers or SimulationResult contents.
+- OMC options and supported output arguments vary by OpenModelica version; consult version-specific documentation when necessary.
 
-## References (official documentation recommended)
+## References
 - OpenModelica website: https://openmodelica.org/
 - Users Guide — Scripting: https://openmodelica.org/doc/OpenModelicaUsersGuide/latest/scripting.html
+
+---
+
 """
