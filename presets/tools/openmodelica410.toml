@@ -10,7 +10,101 @@ RUN apt-get update && apt-get install -y curl ca-certificates gnupg && \
     rm -rf /var/lib/apt/lists/*
 """
 instructions = """
-OpenModelica 4.1.0 is installed.
-Modelica Standard Library (MSL) 4.1.0 is available in /usr/lib/omlibrary/Modelica 4.1.0.
-To use it in your Modelica code, use 'import Modelica;'.
+# omc scripting guide (script-first, no TOC)
+
+## Key points
+- Call setCommandLineOptions before simulate.
+- Specify output variables with simulate(..., outputVariables={...}); confirm flattened full names with getVariables first.
+- Full output produces large result files; shorten stopTime or increase sampling interval when taking full output.
+- Many intermediate files are generated during translation/build; run in a dedicated working directory.
+
+## Execution order (script-first)
+1. Create a working directory (e.g., workdir).
+2. Call setCommandLineOptions to pass flags to OMC (before simulate).
+3. Load the model (loadFile / loadModel).
+4. Use getVariables / getComponentNames to confirm flattened names.
+5. Run simulate and write results into the working directory.
+
+## Primary commands and roles
+- setCommandLineOptions(options)
+  - Set OMC command-line options; affects translation and debug output; call before simulate.
+- loadFile("file.mo") / loadModel("Package")
+  - Load model files or packages.
+- translateModel(ModelName) / buildModel(ModelName)
+  - Translate or build the model as needed.
+- getVariables("ModelName") / getComponentNames("ModelName")
+  - Retrieve variables and component flattened names.
+- simulate(ModelName, ...)
+  - Run simulation. Main arguments: startTime, stopTime, method, tolerance, outputVariables, resultFile, resultFormat.
+- readSimulationResult / plot
+  - Load result files and perform simple plotting.
+
+## simulate main arguments
+- startTime, stopTime: simulation start and stop times.
+- method: solver name (e.g., "dassl").
+- tolerance: numerical tolerance.
+- outputVariables: set of variables to include in results; use flattened full names.
+- resultFile: result filename (prefer working directory).
+- resultFormat: output format (mat, csv, etc.; support depends on environment).
+
+## Output variable selection notes
+- Use flattened full names. For hierarchical models, specify Model.sub.var as returned by getVariables.
+- Array elements and index notation can be environment-dependent; verify with getVariables.
+- Omitting outputVariables typically yields many variables and large files.
+
+## File size and runtime management
+- For full-output debugging, shorten stopTime or increase sampling interval to limit file size and runtime.
+- After identifying needed variables, restrict output via outputVariables and re-run.
+- resultFormat affects size and compatibility: mat is binary and tool-friendly; csv is text and more portable.
+
+## Working directory practice
+- Create a dedicated working directory for each run (e.g., workdir).
+- Place resultFile, logs, and translation artifacts in the working directory for easier cleanup.
+
+## Recommended MOS script example
+```
+# Create working directory (use OS command)
+# Example: mkdir -p workdir
+
+# 1. Pass translation/debug options to OMC (call before simulate)
+setCommandLineOptions("-d=failtrace -d=stateselection");
+
+# 2.Load a specific version if needed
+loadModel("Modelica", {"4.1.0"});
+
+# 3. Load model
+loadFile("MyModel.mo");
+
+# 4. Translate if needed
+translateModel(MyModel);
+
+# 5. Get variable flattened names
+getVariables("MyModel");
+
+# 6. Run simulation (limit time for full output; write results to workdir)
+simulate(MyModel,
+         startTime=0,
+         stopTime=1,                       # shorten time when taking full output
+         method="dassl",
+         tolerance=1e-6,
+         outputVariables={"MyModel.x","MyModel.y"},
+         resultFile="workdir/res.mat",
+         resultFormat="mat");
+```
+
+## Pre-run checklist
+- Created working directory.
+- Called setCommandLineOptions before simulate.
+- Confirmed flattened names with getVariables.
+- Set short stopTime when taking full output.
+- Pointed resultFile to the working directory.
+
+## Notes and caveats
+- Incorrect variable names yield missing data; verify with getVariables.
+- Over-restricting output may require re-simulation if additional variables are later needed.
+- OMC options and supported resultFormat values vary by OpenModelica version; consult the version-specific documentation.
+
+## References (official documentation recommended)
+- OpenModelica website: https://openmodelica.org/
+- Users Guide — Scripting: https://openmodelica.org/doc/OpenModelicaUsersGuide/latest/scripting.html
 """

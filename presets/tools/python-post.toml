@@ -19,4 +19,86 @@ RUN apt-get update && apt-get install -y python3 python-is-python3 python3-setup
 instructions = """
 Use python3 for post-processing.
 Available libraries: foamlib, DyMat, numpy, scipy, matplotlib, pandas, optuna.
+
+# DyMat Usage Guide
+
+DyMat is a Python library for handling Modelica simulation result files (.mat).  
+No installation is required in this context. Below is a summary of the main class, methods, and properties.
+
+---
+
+## Core Class
+
+### DyMat.DyMatFile
+Used to load and interact with simulation result files.
+
+```
+from DyMat import DyMatFile
+
+# Load file
+res_mat = DyMatFile("simulation_result.mat")
+```
+
+---
+
+## Main Methods
+
+### `res_mat.names()`
+- Returns a list of available variable names.
+
+### `res_mat.description(name)`
+- Returns the description of the specified variable.
+
+### `res_mat.data(name)`
+- Returns time series data for the specified variable.
+- Output: `(time, values)` tuple.
+- Both `time` and `values` are NumPy arrays.
+
+### `res_mat.abscissa(name)`
+- Returns the independent variable (usually time) as a NumPy array.
+
+### `res_mat.values(name)`
+- Returns only the values of the specified variable as a NumPy array.
+
+### `res_mat.size(name)`
+- Returns the number of data points for the specified variable.
+
+---
+
+## Properties
+
+### `res_mat.fileName`
+- The name of the loaded file.
+
+### `res_mat.nVariables`
+- Number of variables in the file.
+
+### `res_mat.nRecords`
+- Number of records stored in the file.
+
+---
+
+## Example Usage
+
+```
+# Get variable list
+variables = res_mat.names()
+
+# Description of the first variable
+print(res_mat.description(variables[0]))
+
+# Retrieve data (NumPy arrays)
+time, values = res_mat.data("engine.speed")
+
+# Values only (NumPy array)
+speed_values = res_mat.values("engine.speed")
+
+# Number of data points
+print(res_mat.size("engine.speed"))
+
+# NumPy operations
+import numpy as np
+mean_speed = np.mean(speed_values)
+print("Average speed:", mean_speed)
+```
 """
