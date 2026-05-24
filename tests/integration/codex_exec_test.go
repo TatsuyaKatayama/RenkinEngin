@@ -60,12 +60,10 @@ install = "RUN echo installed"
 	}
 
 	// Build and Start
-	if os.Getenv("CI") != "" {
-		buildCmd := exec.Command("docker", "compose", "build", "--no-cache")
-		buildCmd.Dir = targetDir
-		if out, err := buildCmd.CombinedOutput(); err != nil {
-			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
-		}
+	buildCmd2 := exec.Command("docker", "compose", "build")
+	buildCmd2.Dir = targetDir
+	if out, err := buildCmd2.CombinedOutput(); err != nil {
+		t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
 	}
 
 	upCmd := exec.Command("docker", "compose", "up", "-d")
@@ -75,7 +73,7 @@ install = "RUN echo installed"
 	}
 	
 	// Wait a bit
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Verify installation
 	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "codex --version")

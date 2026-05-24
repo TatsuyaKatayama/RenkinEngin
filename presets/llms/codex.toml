@@ -7,5 +7,7 @@ RUN apt-get update && apt-get install -y curl ca-certificates git && \
     npm install -g @openai/codex && \
     git config --global --add safe.directory /workspace && \
     mkdir -p /root/.codex && \
-    echo '[[projects]]\npath = "/workspace"\ntrust_level = "trusted"' > /root/.codex/config.toml
+    echo '[[projects]]' > /root/.codex/config.toml && \
+    echo 'path = "/workspace"' >> /root/.codex/config.toml && \
+    echo 'trust_level = "trusted"' >> /root/.codex/config.toml
 """
