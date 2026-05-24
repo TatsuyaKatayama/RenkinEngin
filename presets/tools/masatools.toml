@@ -1,0 +1,46 @@
+[[tool]]
+preset = "python-post"
+
+[[tool]]
+name = "masatools-mcp"
+type = "shell"
+environment = ["NATS_URL", "API_URL", "S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+install = """
+RUN /usr/local/bin/uv pip install --system --break-system-packages \
+    nats-py[nkeys] \
+    boto3 \
+    pydantic \
+    python-ulid \
+    mcp \
+    httpx && \
+    /usr/local/bin/uv pip install --system --break-system-packages "masatools @ git+https://github.com/TatsuyaKatayama/masatools.git@develop" && \
+    mkdir -p /root/.codex /root/.gemini && \
+    printf '%s\\n' \
+      '[mcp_servers.masatools]' \
+      'command = "python"' \
+      'args = ["-m", "masatools.adapters.mcp.server"]' \
+      > /root/.codex/config.toml && \
+    printf '%s\\n' \
+      '{' \
+      '  "mcpServers": {' \
+      '    "masatools": {' \
+      '      "command": "python",' \
+      '      "args": ["-m", "masatools.adapters.mcp.server"]' \
+      '    }' \
+      '  }' \
+      '}' \
+      > /root/.gemini/settings.json
+"""
+instructions = """
+# masatools MCP Server
+Available tools for message board and storage interaction:
+
+- `check_board_tool(wait_seconds=60)`: Checks for new tasks on NATS.
+- `post_response_tool(output_dir, exit_code=0, error=None)`: Posts results back to the board.
+- `update_status_tool(progress, state, message=None)`: Reports execution progress.
+- `create_thread_tool(command, deadline, ...)`: Creates a new sub-task thread.
+- `sync_from_s3_tool(thread_id, sub_path="input/")`: Syncs data from S3 to local.
+- `sync_to_s3_tool(thread_id, local_file_path)`: Uploads result to S3.
+
+Note: These tools require `NATS_URL`, `API_URL`, `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` to be set in the environment.
+"""
