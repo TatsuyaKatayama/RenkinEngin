@@ -16,7 +16,7 @@
 <body>
     <div class="reveal">
         <div class="slides">
-            <section data-markdown data-separator="---" data-separator-vertical="--">
+            <section data-markdown data-separator="---" data-separator-vertical="@@">
                 <textarea data-template>
 # RenkinEngin ⚗️⚙️
 ## LLMエージェントと解析ツールの「錬金」基盤
@@ -43,11 +43,18 @@
 ### 3つのステップで労働開始 🚀
 
 1. **錬金（Assign）** ⚗️
-   `renkin assign ./ --llm gemini --tools openfoam2512`
-2. **起動（Start）** ⚙️
-   `renkin start`
-3. **連勤（Labor）** 🤖
-   エージェントが自律的にシミュレーションを開始！
+   ```renkin assign ./ --llm gemini --tools openfoam2512```
+
+@@
+
+2. **連勤（Start）** ⚙️
+   ```renkin start```
+
+@@
+
+3. **解雇** 🤖
+   エージェントを解雇する場合（コンテナ削除）  
+   ```renkin start```
 
 ---
 
