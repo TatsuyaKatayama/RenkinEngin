@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	dockerPath string
-	llmPath    string
-	toolsPath  []string
-	skillsPath string
+	dockerPath  string
+	llmPath     string
+	toolsPath   []string
+	skillsPath  string
+	overrideCmd string
 )
 
 func main() {
@@ -40,6 +41,7 @@ func main() {
 		Short: "Start the docker-compose environment and attach to LLM agent",
 		RunE:  runStart,
 	}
+	startCmd.Flags().StringVar(&overrideCmd, "cmd", "", "Override default LLM command (e.g., --cmd bash)")
 
 	var endCmd = &cobra.Command{
 		Use:   "end",
@@ -300,13 +302,22 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if meta.LLMCmd != "" {
-		fmt.Printf("Attaching to LLM agent with command: %s\n", meta.LLMCmd)
-		return docker.ExecAttach("llm-agent", meta.LLMCmd)
+	cmdToRun := determineCommand(meta.LLMCmd, overrideCmd)
+
+	if cmdToRun != "" {
+		fmt.Printf("Attaching to container with command: %s\n", cmdToRun)
+		return docker.ExecAttach("llm-agent", cmdToRun)
 	}
 
 	fmt.Println("Containers started. No LLM agent to attach.")
 	return nil
+}
+
+func determineCommand(metaLLMCmd, overrideCmd string) string {
+	if overrideCmd != "" {
+		return overrideCmd
+	}
+	return metaLLMCmd
 }
 
 func runEnd(cmd *cobra.Command, args []string) error {
