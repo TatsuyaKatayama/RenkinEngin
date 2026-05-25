@@ -15,13 +15,20 @@ RUN apt-get update && apt-get install -y golang-go ca-certificates && \
       '[mcp_servers.forgejo]' \
       'command = "/usr/local/bin/forgejo-mcp"' \
       'args = ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"]' \
+      '[mcp_servers.forgejo.env]' \
+      'FORGEJO_ACCESS_TOKEN = "${FORGEJO_ACCESS_TOKEN}"' \
+      'FORGEJO_USER_AGENT = "${FORGEJO_USER_AGENT}"' \
       > /root/.codex/config.toml && \
     printf '%s\\n' \
       '{' \
       '  "mcpServers": {' \
       '    "forgejo": {' \
       '      "command": "/usr/local/bin/forgejo-mcp",' \
-      '      "args": ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"]' \
+      '      "args": ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"],' \
+      '      "env": {' \
+      '        "FORGEJO_ACCESS_TOKEN": "${FORGEJO_ACCESS_TOKEN}",' \
+      '        "FORGEJO_USER_AGENT": "${FORGEJO_USER_AGENT}"' \
+      '      }' \
       '    }' \
       '  }' \
       '}' \
