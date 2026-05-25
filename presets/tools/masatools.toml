@@ -19,13 +19,28 @@ RUN /usr/local/bin/uv pip install --system --break-system-packages \
       '[mcp_servers.masatools]' \
       'command = "python"' \
       'args = ["-m", "masatools.adapters.mcp.server"]' \
+      '[mcp_servers.masatools.env]' \
+      'NATS_URL = "${NATS_URL}"' \
+      'API_URL = "${API_URL}"' \
+      'S3_ENDPOINT = "${S3_ENDPOINT}"' \
+      'AWS_ACCESS_KEY_ID = "${AWS_ACCESS_KEY_ID}"' \
+      'AWS_SECRET_ACCESS_KEY = "${AWS_SECRET_ACCESS_KEY}"' \
+      'AGENT_ID = "${AGENT_ID}"' \
       > /root/.codex/config.toml && \
     printf '%s\\n' \
       '{' \
       '  "mcpServers": {' \
       '    "masatools": {' \
       '      "command": "python",' \
-      '      "args": ["-m", "masatools.adapters.mcp.server"]' \
+      '      "args": ["-m", "masatools.adapters.mcp.server"],' \
+      '      "env": {' \
+      '        "NATS_URL": "${NATS_URL}",' \
+      '        "API_URL": "${API_URL}",' \
+      '        "S3_ENDPOINT": "${S3_ENDPOINT}",' \
+      '        "AWS_ACCESS_KEY_ID": "${AWS_ACCESS_KEY_ID}",' \
+      '        "AWS_SECRET_ACCESS_KEY": "${AWS_SECRET_ACCESS_KEY}",' \
+      '        "AGENT_ID": "${AGENT_ID}"' \
+      '      }' \
       '    }' \
       '  }' \
       '}' \
