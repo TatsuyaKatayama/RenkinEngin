@@ -13,38 +13,18 @@ RUN /usr/local/bin/uv pip install --system --break-system-packages \
     python-ulid \
     mcp \
     httpx && \
-    /usr/local/bin/uv pip install --system --break-system-packages "masatools @ git+https://github.com/TatsuyaKatayama/masatools.git@develop" && \
-    mkdir -p /root/.codex /root/.gemini && \
-    printf '%s\\n' \
-      '[mcp_servers.masatools]' \
-      'command = "python"' \
-      'args = ["-m", "masatools.adapters.mcp.server"]' \
-      '[mcp_servers.masatools.env]' \
-      'NATS_URL = "${NATS_URL}"' \
-      'API_URL = "${API_URL}"' \
-      'S3_ENDPOINT = "${S3_ENDPOINT}"' \
-      'AWS_ACCESS_KEY_ID = "${AWS_ACCESS_KEY_ID}"' \
-      'AWS_SECRET_ACCESS_KEY = "${AWS_SECRET_ACCESS_KEY}"' \
-      'AGENT_ID = "${AGENT_ID}"' \
-      > /root/.codex/config.toml && \
-    printf '%s\\n' \
-      '{' \
-      '  "mcpServers": {' \
-      '    "masatools": {' \
-      '      "command": "python",' \
-      '      "args": ["-m", "masatools.adapters.mcp.server"],' \
-      '      "env": {' \
-      '        "NATS_URL": "${NATS_URL}",' \
-      '        "API_URL": "${API_URL}",' \
-      '        "S3_ENDPOINT": "${S3_ENDPOINT}",' \
-      '        "AWS_ACCESS_KEY_ID": "${AWS_ACCESS_KEY_ID}",' \
-      '        "AWS_SECRET_ACCESS_KEY": "${AWS_SECRET_ACCESS_KEY}",' \
-      '        "AGENT_ID": "${AGENT_ID}"' \
-      '      }' \
-      '    }' \
-      '  }' \
-      '}' \
-      > /root/.gemini/settings.json
+    /usr/local/bin/uv pip install --system --break-system-packages "masatools @ git+https://github.com/TatsuyaKatayama/masatools.git@develop"
+"""
+startup = """
+renkin_add_codex_config <<'MASATOOLS_CODEX_EOF'
+[mcp_servers.masatools]
+command = "/bin/bash"
+args = ["-lc", "exec python -m masatools.adapters.mcp.server"]
+MASATOOLS_CODEX_EOF
+
+renkin_add_gemini_mcp_server <<'MASATOOLS_GEMINI_EOF'
+    "masatools": {"command": "/bin/bash", "args": ["-lc", "exec python -m masatools.adapters.mcp.server"]}
+MASATOOLS_GEMINI_EOF
 """
 instructions = """
 # masatools MCP Server

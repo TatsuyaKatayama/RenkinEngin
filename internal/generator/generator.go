@@ -17,6 +17,8 @@ const dockerfileTemplate = `FROM {{.Docker.BaseImage}}
 # Shell tools installation
 {{range .ToolList.Tools}}{{if eq .Type "shell"}}{{.Install}}
 {{end}}{{end}}
+{{.RuntimeConfigInstall}}
+
 WORKDIR /workspace
 `
 
@@ -81,10 +83,11 @@ const envTemplate = `{{range .EnvKeys}}{{.}}=
 
 type GeneratorData struct {
 	config.Config
-	EnvKeys     []string
-	DefaultEnv  []string
-	ProxyKeys   []string
-	ExtraMounts map[string][]config.Mount
+	EnvKeys              []string
+	DefaultEnv           []string
+	ProxyKeys            []string
+	ExtraMounts          map[string][]config.Mount
+	RuntimeConfigInstall string
 }
 
 func GenerateDockerfile(cfg config.Config) (string, error) {
@@ -92,11 +95,71 @@ func GenerateDockerfile(cfg config.Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	data := GeneratorData{
+		Config:               cfg,
+		RuntimeConfigInstall: GenerateRuntimeConfigInstall(cfg),
+	}
+
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func GenerateRuntimeConfigInstall(cfg config.Config) string {
+	var startup []string
+	if cfg.LLM != nil && cfg.LLM.Startup != "" {
+		startup = append(startup, cfg.LLM.Startup)
+	}
+	for _, tool := range cfg.ToolList.Tools {
+		if tool.Startup != "" {
+			startup = append(startup, tool.Startup)
+		}
+	}
+	if len(startup) == 0 {
+		return ""
+	}
+
+	var script bytes.Buffer
+	script.WriteString("# Runtime LLM config generation\n")
+	script.WriteString("RUN cat > /usr/local/bin/renkin-generate-llm-config <<'RENKIN_CONFIG_EOF'\n")
+	script.WriteString("#!/usr/bin/env bash\n")
+	script.WriteString("set -euo pipefail\n")
+	script.WriteString("RENKIN_CODEX_CONFIG=\"${RENKIN_CODEX_CONFIG:-/tmp/renkin-codex-config.toml}\"\n")
+	script.WriteString("RENKIN_GEMINI_MCP_SERVERS=\"${RENKIN_GEMINI_MCP_SERVERS:-/tmp/renkin-gemini-mcp-servers.jsonl}\"\n")
+	script.WriteString("mkdir -p /root/.codex /root/.gemini\n")
+	script.WriteString(": > \"$RENKIN_CODEX_CONFIG\"\n")
+	script.WriteString(": > \"$RENKIN_GEMINI_MCP_SERVERS\"\n\n")
+	script.WriteString("renkin_add_codex_config() {\n  cat >> \"$RENKIN_CODEX_CONFIG\"\n  printf '\\n' >> \"$RENKIN_CODEX_CONFIG\"\n}\n\n")
+	script.WriteString("renkin_add_gemini_mcp_server() {\n  tmp=\"$(mktemp)\"\n  cat > \"$tmp\"\n  tr -d '\\n' < \"$tmp\" >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  printf '\\n' >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  rm -f \"$tmp\"\n}\n\n")
+	for _, item := range startup {
+		script.WriteString(item)
+		if len(item) == 0 || item[len(item)-1] != '\n' {
+			script.WriteByte('\n')
+		}
+		script.WriteByte('\n')
+	}
+	script.WriteString("cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
+	script.WriteString("{\n")
+	script.WriteString("  printf '{\\n  \"mcpServers\": {\\n'\n")
+	script.WriteString("  first=1\n")
+	script.WriteString("  while IFS= read -r server; do\n")
+	script.WriteString("    [ -n \"$server\" ] || continue\n")
+	script.WriteString("    if [ \"$first\" -eq 1 ]; then\n")
+	script.WriteString("      printf '%s' \"$server\"\n")
+	script.WriteString("      first=0\n")
+	script.WriteString("    else\n")
+	script.WriteString("      printf ',\\n%s' \"$server\"\n")
+	script.WriteString("    fi\n")
+	script.WriteString("  done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
+	script.WriteString("  if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
+	script.WriteString("  printf '  }\\n}\\n'\n")
+	script.WriteString("} > /root/.gemini/settings.json\n")
+	script.WriteString("RENKIN_CONFIG_EOF\n")
+	script.WriteString("RUN chmod +x /usr/local/bin/renkin-generate-llm-config\n")
+
+	return script.String()
 }
 
 func GenerateDockerCompose(cfg config.Config) (string, error) {

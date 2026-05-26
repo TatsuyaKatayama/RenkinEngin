@@ -9,21 +9,16 @@ RUN apt-get update && apt-get install -y python3 python-is-python3 python3-setup
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     /root/.local/bin/uv pip install --system --break-system-packages mcp-server-git && \
     ln -s /root/.local/bin/uv /usr/local/bin/uv && \
-    mkdir -p /root/.codex /root/.gemini && \
-    printf '%s\\n' \
-      '[mcp_servers.git]' \
-      'command = "/usr/local/bin/mcp-server-git"' \
-      'args = ["--repository", "/workspace"]' \
-      > /root/.codex/config.toml && \
-    printf '%s\\n' \
-      '{' \
-      '  "mcpServers": {' \
-      '    "git": {' \
-      '      "command": "/usr/local/bin/mcp-server-git",' \
-      '      "args": ["--repository", "/workspace"]' \
-      '    }' \
-      '  }' \
-      '}' \
-      > /root/.gemini/settings.json && \
     rm -rf /var/lib/apt/lists/*
+"""
+startup = """
+renkin_add_codex_config <<'MCP_GIT_CODEX_EOF'
+[mcp_servers.git]
+command = "/usr/local/bin/mcp-server-git"
+args = ["--repository", "/workspace"]
+MCP_GIT_CODEX_EOF
+
+renkin_add_gemini_mcp_server <<'MCP_GIT_GEMINI_EOF'
+    "git": {"command": "/usr/local/bin/mcp-server-git", "args": ["--repository", "/workspace"]}
+MCP_GIT_GEMINI_EOF
 """

@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -17,6 +16,7 @@ func TestDockerExecGeminiVersion(t *testing.T) {
 
 	tmpDir, _ := os.MkdirTemp("", "renkin-gemini-test")
 	defer os.RemoveAll(tmpDir)
+	t.Setenv("GEMINI_API_KEY", "test-api-key")
 
 	binPath := filepath.Join(tmpDir, "renkin")
 	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
@@ -66,25 +66,22 @@ install = "RUN echo installed"
 		t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
 	}
 
-	upCmd := exec.Command("docker", "compose", "up", "-d")
-	upCmd.Dir = targetDir
-	if out, err := upCmd.CombinedOutput(); err != nil {
-		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
+	startCmd := exec.Command(binPath, "start", "--cmd", "true")
+	startCmd.Dir = targetDir
+	if out, err := startCmd.CombinedOutput(); err != nil {
+		t.Fatalf("renkin start failed: %v\n%s", err, string(out))
 	}
-	
-	// Wait a bit
-	time.Sleep(5 * time.Second)
+	defer func() {
+		downCmd := exec.Command(binPath, "end")
+		downCmd.Dir = targetDir
+		downCmd.Run()
+	}()
 
 	// Verify installation
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "gemini --help")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "gemini --help && test -f /root/.gemini/settings.json")
 	execCmd.Dir = targetDir
-	
+
 	output, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
 	assert.Contains(t, string(output), "Commands")
-
-	// Cleanup
-	downCmd := exec.Command("docker", "compose", "down")
-	downCmd.Dir = targetDir
-	downCmd.Run()
 }

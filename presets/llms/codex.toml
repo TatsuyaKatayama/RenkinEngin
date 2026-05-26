@@ -5,9 +5,12 @@ RUN apt-get update && apt-get install -y curl ca-certificates git && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g @openai/codex && \
-    git config --global --add safe.directory /workspace && \
-    mkdir -p /root/.codex && \
-    echo '[[projects]]' > /root/.codex/config.toml && \
-    echo 'path = "/workspace"' >> /root/.codex/config.toml && \
-    echo 'trust_level = "trusted"' >> /root/.codex/config.toml
+    git config --global --add safe.directory /workspace
+"""
+startup = """
+renkin_add_codex_config <<'CODEX_PROJECT_EOF'
+[[projects]]
+path = "/workspace"
+trust_level = "trusted"
+CODEX_PROJECT_EOF
 """

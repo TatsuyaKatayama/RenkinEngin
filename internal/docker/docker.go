@@ -22,6 +22,13 @@ func ComposeDown() error {
 	return cmd.Run()
 }
 
+func Exec(serviceName string, command string) error {
+	cmd := exec.Command("docker", "compose", "exec", "-T", serviceName, "bash", "-c", command)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func composeEnv(base []string, envPath string) []string {
 	values, err := loadNonEmptyEnvFile(envPath)
 	if err != nil || len(values) == 0 {
