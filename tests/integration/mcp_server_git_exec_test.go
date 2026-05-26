@@ -64,7 +64,7 @@ preset = "mcp-server-git"
 		downCmd.Run()
 	}()
 
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "git --version && command -v mcp-server-git && mcp-server-git --help >/dev/null && test -f /root/.codex/config.toml && test -f /root/.gemini/settings.json && grep -q '/usr/local/bin/mcp-server-git' /root/.codex/config.toml && grep -q '/usr/local/bin/mcp-server-git' /root/.gemini/settings.json")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "renkin-generate-llm-config && git --version && command -v mcp-server-git && mcp-server-git --help >/dev/null && test -f /root/.codex/config.toml && test -f /root/.gemini/settings.json && grep -q '/usr/local/bin/mcp-server-git' /root/.codex/config.toml && grep -q '/usr/local/bin/mcp-server-git' /root/.gemini/settings.json")
 	execCmd.Dir = targetDir
 	out, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(out))

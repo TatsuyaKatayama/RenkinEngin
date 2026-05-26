@@ -302,6 +302,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := docker.Exec("llm-agent", "if command -v renkin-generate-llm-config >/dev/null 2>&1; then renkin-generate-llm-config; fi"); err != nil {
+		return err
+	}
+
 	cmdToRun := determineCommand(meta.LLMCmd, overrideCmd)
 
 	if cmdToRun != "" {

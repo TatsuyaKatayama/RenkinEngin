@@ -62,6 +62,7 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 
 	cfg := config.Config{
 		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		LLM:      &config.LLMConf{Cmd: "codex"},
 		ToolList: list,
 	}
 	dockerfile, err := generator.GenerateDockerfile(cfg)
@@ -70,6 +71,25 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "curl -LsSf https://astral.sh/uv/install.sh | sh")
 	assert.Contains(t, dockerfile, "uv pip install --system --break-system-packages mcp-server-git")
 	assert.Contains(t, dockerfile, "mcp-server-git")
+	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
+	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
+	assert.Contains(t, dockerfile, `args = ["--repository", "/workspace"]`)
+}
+
+func TestRuntimeConfigGenerationForMCPToolWithoutLLM(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/mcp-server-git.toml")
+	assert.NoError(t, err)
+	err = list.ResolvePresets("../../presets/tools")
+	assert.NoError(t, err)
+
+	cfg := config.Config{
+		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		ToolList: list,
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
 	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
 }
@@ -82,6 +102,7 @@ func TestDockerfileGenerationForgejoMCPPreset(t *testing.T) {
 
 	cfg := config.Config{
 		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		LLM:      &config.LLMConf{Cmd: "codex"},
 		ToolList: list,
 	}
 	dockerfile, err := generator.GenerateDockerfile(cfg)
@@ -91,6 +112,28 @@ func TestDockerfileGenerationForgejoMCPPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "go build -o /usr/local/bin/forgejo-mcp .")
 	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
 	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
+	assert.Contains(t, dockerfile, "${FORGEJO_URL:-https://codeberg.org}")
+}
+
+func TestRuntimeConfigGenerationGemini(t *testing.T) {
+	list, err := config.LoadToolList("../../presets/tools/masatools.toml")
+	assert.NoError(t, err)
+	err = list.ResolvePresets("../../presets/tools")
+	assert.NoError(t, err)
+
+	cfg := config.Config{
+		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		LLM:      &config.LLMConf{Cmd: "gemini"},
+		ToolList: list,
+	}
+	dockerfile, err := generator.GenerateDockerfile(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
+	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
+	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+	assert.Contains(t, dockerfile, "[mcp_servers.masatools]")
+	assert.Contains(t, dockerfile, `"masatools": {`)
 }
 
 func TestDockerComposeGeneration(t *testing.T) {

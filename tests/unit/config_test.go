@@ -165,9 +165,9 @@ func TestMCPServerGitToolPreset(t *testing.T) {
 	assert.Equal(t, "shell", tool.Type)
 	assert.Contains(t, tool.Install, "uv pip install --system --break-system-packages mcp-server-git")
 	assert.Contains(t, tool.Install, "ln -s /root/.local/bin/uv /usr/local/bin/uv")
-	assert.Contains(t, tool.Install, "/root/.codex/config.toml")
-	assert.Contains(t, tool.Install, "/root/.gemini/settings.json")
-	assert.Contains(t, tool.Install, `args = ["--repository", "/workspace"]`)
+	assert.NotContains(t, tool.Install, "/root/.codex/config.toml")
+	assert.NotContains(t, tool.Install, "/root/.gemini/settings.json")
+	assert.Contains(t, tool.Startup, `args = ["--repository", "/workspace"]`)
 }
 
 func TestMCPServerGitToolPresetResolution(t *testing.T) {
@@ -191,9 +191,9 @@ func TestForgejoMCPToolPreset(t *testing.T) {
 	assert.Equal(t, "shell", tool.Type)
 	assert.Contains(t, tool.Install, "git clone --depth 1 https://github.com/goern/forgejo-mcp.git")
 	assert.Contains(t, tool.Install, "go build -o /usr/local/bin/forgejo-mcp .")
-	assert.Contains(t, tool.Install, "/root/.codex/config.toml")
-	assert.Contains(t, tool.Install, "/root/.gemini/settings.json")
-	assert.Contains(t, tool.Install, "${FORGEJO_URL:-https://codeberg.org}")
+	assert.NotContains(t, tool.Install, "/root/.codex/config.toml")
+	assert.NotContains(t, tool.Install, "/root/.gemini/settings.json")
+	assert.Contains(t, tool.Startup, "${FORGEJO_URL:-https://codeberg.org}")
 	assert.ElementsMatch(t, []string{"FORGEJO_URL", "FORGEJO_ACCESS_TOKEN", "FORGEJO_USER_AGENT"}, tool.Environment)
 }
 
@@ -321,7 +321,7 @@ func TestCollectEnvKeys(t *testing.T) {
 	assert.Contains(t, keys, "VAR1")
 	assert.Contains(t, keys, "VAR2")
 	assert.Contains(t, keys, "VAR3")
-	
+
 	// Check uniqueness
 	count := 0
 	for _, k := range keys {

@@ -24,6 +24,7 @@ type LLMConf struct {
 	Cmd      string   `toml:"cmd"`
 	AuthMode string   `toml:"auth_mode"`
 	Install  string   `toml:"install"`
+	Startup  string   `toml:"startup"`
 	Ports    []string `toml:"ports"`
 }
 
@@ -32,6 +33,7 @@ type Tool struct {
 	Type         string   `toml:"type"`
 	Preset       string   `toml:"preset"`
 	Install      string   `toml:"install"`
+	Startup      string   `toml:"startup"`
 	Instructions string   `toml:"instructions"`
 	Image        string   `toml:"image"`
 	Port         int      `toml:"port"`
@@ -140,6 +142,7 @@ func hasToolOverrides(t Tool) bool {
 	return t.Name != "" ||
 		t.Type != "" ||
 		t.Install != "" ||
+		t.Startup != "" ||
 		t.Instructions != "" ||
 		t.Image != "" ||
 		t.Port != 0 ||
@@ -172,6 +175,9 @@ func applyToolOverrides(pt *Tool, t Tool) {
 	}
 	if t.Install != "" {
 		pt.Install = t.Install
+	}
+	if t.Startup != "" {
+		pt.Startup = t.Startup
 	}
 	if t.Instructions != "" {
 		pt.Instructions = t.Instructions
