@@ -21,8 +21,4 @@ args = ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"]
 FORGEJO_ACCESS_TOKEN = "${FORGEJO_ACCESS_TOKEN:-}"
 FORGEJO_USER_AGENT = "${FORGEJO_USER_AGENT:-}"
 FORGEJO_CODEX_EOF
-
-renkin_add_gemini_mcp_server <<FORGEJO_GEMINI_EOF
-    "forgejo": {"command": "/usr/local/bin/forgejo-mcp", "args": ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"], "env": {"FORGEJO_ACCESS_TOKEN": "${FORGEJO_ACCESS_TOKEN:-}", "FORGEJO_USER_AGENT": "${FORGEJO_USER_AGENT:-}"}}
-FORGEJO_GEMINI_EOF
 """

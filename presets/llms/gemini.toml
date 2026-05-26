@@ -7,6 +7,3 @@ RUN apt-get update && apt-get install -y curl ca-certificates git && \
     npm install -g @google/gemini-cli && \
     git config --global --add safe.directory /workspace
 """
-startup = """
-# Gemini settings.json is assembled from tool startup fragments.
-"""

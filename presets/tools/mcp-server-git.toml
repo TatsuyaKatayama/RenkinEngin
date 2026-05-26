@@ -17,8 +17,4 @@ renkin_add_codex_config <<'MCP_GIT_CODEX_EOF'
 command = "/usr/local/bin/mcp-server-git"
 args = ["--repository", "/workspace"]
 MCP_GIT_CODEX_EOF
-
-renkin_add_gemini_mcp_server <<'MCP_GIT_GEMINI_EOF'
-    "git": {"command": "/usr/local/bin/mcp-server-git", "args": ["--repository", "/workspace"]}
-MCP_GIT_GEMINI_EOF
 """

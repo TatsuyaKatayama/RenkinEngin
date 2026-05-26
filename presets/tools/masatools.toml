@@ -21,10 +21,6 @@ renkin_add_codex_config <<'MASATOOLS_CODEX_EOF'
 command = "/bin/bash"
 args = ["-lc", "exec python -m masatools.adapters.mcp.server"]
 MASATOOLS_CODEX_EOF
-
-renkin_add_gemini_mcp_server <<'MASATOOLS_GEMINI_EOF'
-    "masatools": {"command": "/bin/bash", "args": ["-lc", "exec python -m masatools.adapters.mcp.server"]}
-MASATOOLS_GEMINI_EOF
 """
 instructions = """
 # masatools MCP Server

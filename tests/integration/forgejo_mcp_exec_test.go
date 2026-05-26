@@ -70,7 +70,7 @@ preset = "forgejo-mcp"
 		downCmd.Run()
 	}()
 
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "renkin-generate-llm-config && git --version && command -v forgejo-mcp && forgejo-mcp --help >/dev/null && test -f /root/.codex/config.toml && test -f /root/.gemini/settings.json && grep -q '/usr/local/bin/forgejo-mcp' /root/.codex/config.toml && grep -q '/usr/local/bin/forgejo-mcp' /root/.gemini/settings.json && grep -q 'https://codeberg.org' /root/.codex/config.toml && grep -q 'https://codeberg.org' /root/.gemini/settings.json")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "renkin-generate-llm-config && git --version && command -v forgejo-mcp && forgejo-mcp --help >/dev/null && test -f /root/.codex/config.toml && grep -q '/usr/local/bin/forgejo-mcp' /root/.codex/config.toml && grep -q 'https://codeberg.org' /root/.codex/config.toml")
 	execCmd.Dir = targetDir
 	out, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(out))
