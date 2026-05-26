@@ -78,7 +78,7 @@ install = "RUN echo installed"
 	}()
 
 	// Verify installation
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "codex --version && test -f /root/.codex/config.toml && grep -q 'trust_level = \"trusted\"' /root/.codex/config.toml")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "codex --version && test -f /root/.codex/config.toml")
 	execCmd.Dir = targetDir
 
 	output, err := execCmd.CombinedOutput()

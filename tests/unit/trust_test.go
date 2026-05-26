@@ -41,7 +41,6 @@ func TestLLMPresetTrustCommands(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, lConfCodex.Install, "git config --global --add safe.directory /workspace")
 	assert.NotContains(t, lConfCodex.Install, "/root/.codex/config.toml")
-	assert.Contains(t, lConfCodex.Startup, "trust_level = \"trusted\"")
 }
 
 func TestGitToolPresetTrustCommand(t *testing.T) {

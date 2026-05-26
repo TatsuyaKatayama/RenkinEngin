@@ -72,7 +72,7 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "uv pip install --system --break-system-packages mcp-server-git")
 	assert.Contains(t, dockerfile, "mcp-server-git")
 	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
-	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+	assert.NotContains(t, dockerfile, "/root/.gemini/settings.json")
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 	assert.Contains(t, dockerfile, `args = ["--repository", "/workspace"]`)
 }
@@ -111,7 +111,7 @@ func TestDockerfileGenerationForgejoMCPPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "git clone --depth 1 https://github.com/goern/forgejo-mcp.git")
 	assert.Contains(t, dockerfile, "go build -o /usr/local/bin/forgejo-mcp .")
 	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
-	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
+	assert.NotContains(t, dockerfile, "/root/.gemini/settings.json")
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 	assert.Contains(t, dockerfile, "${FORGEJO_URL:-https://codeberg.org}")
 }
@@ -130,7 +130,7 @@ func TestRuntimeConfigGenerationGemini(t *testing.T) {
 	dockerfile, err := generator.GenerateDockerfile(cfg)
 	assert.NoError(t, err)
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
-	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
+	assert.NotContains(t, dockerfile, "/root/.codex/config.toml")
 	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
 	assert.Contains(t, dockerfile, "[mcp_servers.masatools]")
 	assert.Contains(t, dockerfile, `"masatools": {`)

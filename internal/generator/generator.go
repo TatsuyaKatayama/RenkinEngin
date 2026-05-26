@@ -117,7 +117,7 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 			startup = append(startup, tool.Startup)
 		}
 	}
-	if len(startup) == 0 {
+	if cfg.LLM == nil && len(startup) == 0 {
 		return ""
 	}
 
@@ -140,22 +140,32 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 		}
 		script.WriteByte('\n')
 	}
-	script.WriteString("cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
-	script.WriteString("{\n")
-	script.WriteString("  printf '{\\n  \"mcpServers\": {\\n'\n")
-	script.WriteString("  first=1\n")
-	script.WriteString("  while IFS= read -r server; do\n")
-	script.WriteString("    [ -n \"$server\" ] || continue\n")
-	script.WriteString("    if [ \"$first\" -eq 1 ]; then\n")
-	script.WriteString("      printf '%s' \"$server\"\n")
-	script.WriteString("      first=0\n")
-	script.WriteString("    else\n")
-	script.WriteString("      printf ',\\n%s' \"$server\"\n")
-	script.WriteString("    fi\n")
-	script.WriteString("  done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
-	script.WriteString("  if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
-	script.WriteString("  printf '  }\\n}\\n'\n")
-	script.WriteString("} > /root/.gemini/settings.json\n")
+
+	llmType := ""
+	if cfg.LLM != nil {
+		llmType, _ = cfg.LLM.GetType()
+	}
+
+	if llmType != "gemini" {
+		script.WriteString("cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
+	}
+	if llmType != "codex" {
+		script.WriteString("{\n")
+		script.WriteString("  printf '{\\n  \"mcpServers\": {\\n'\n")
+		script.WriteString("  first=1\n")
+		script.WriteString("  while IFS= read -r server; do\n")
+		script.WriteString("    [ -n \"$server\" ] || continue\n")
+		script.WriteString("    if [ \"$first\" -eq 1 ]; then\n")
+		script.WriteString("      printf '%s' \"$server\"\n")
+		script.WriteString("      first=0\n")
+		script.WriteString("    else\n")
+		script.WriteString("      printf ',\\n%s' \"$server\"\n")
+		script.WriteString("    fi\n")
+		script.WriteString("  done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
+		script.WriteString("  if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
+		script.WriteString("  printf '  }\\n}\\n'\n")
+		script.WriteString("} > /root/.gemini/settings.json\n")
+	}
 	script.WriteString("RENKIN_CONFIG_EOF\n")
 	script.WriteString("RUN chmod +x /usr/local/bin/renkin-generate-llm-config\n")
 

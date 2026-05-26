@@ -7,10 +7,3 @@ RUN apt-get update && apt-get install -y curl ca-certificates git && \
     npm install -g @openai/codex && \
     git config --global --add safe.directory /workspace
 """
-startup = """
-renkin_add_codex_config <<'CODEX_PROJECT_EOF'
-[[projects]]
-path = "/workspace"
-trust_level = "trusted"
-CODEX_PROJECT_EOF
-"""

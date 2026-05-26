@@ -19,6 +19,7 @@ var (
 	toolsPath   []string
 	skillsPath  string
 	overrideCmd string
+	noConfig    bool
 )
 
 func main() {
@@ -42,6 +43,7 @@ func main() {
 		RunE:  runStart,
 	}
 	startCmd.Flags().StringVar(&overrideCmd, "cmd", "", "Override default LLM command (e.g., --cmd bash)")
+	startCmd.Flags().BoolVar(&noConfig, "no-config", false, "Skip automatic configuration generation")
 
 	var endCmd = &cobra.Command{
 		Use:   "end",
@@ -302,8 +304,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := docker.Exec("llm-agent", "if command -v renkin-generate-llm-config >/dev/null 2>&1; then renkin-generate-llm-config; fi"); err != nil {
-		return err
+	if !noConfig {
+		if err := docker.Exec("llm-agent", "if command -v renkin-generate-llm-config >/dev/null 2>&1; then renkin-generate-llm-config; fi"); err != nil {
+			return err
+		}
 	}
 
 	cmdToRun := determineCommand(meta.LLMCmd, overrideCmd)

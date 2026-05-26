@@ -82,12 +82,19 @@ renkin assign <target_dir> \
 ### 2.3 renkin start
 
 ```bash
-renkin start
+renkin start [--cmd <command>] [--no-config]
 ```
 
 1. **環境変数チェック**: 必要な環境変数がホストに設定されているか確認。不足がある場合、警告を表示し続行を確認する
 2. `docker compose up -d` でコンテナ群をバックグラウンド起動
-3. LLMエージェントコンテナに`docker exec -it`でアタッチ
+3. **LLM設定自動生成**: `--no-config` が指定されていない場合、コンテナ内で `renkin-generate-llm-config` を実行し、エージェントの設定ファイル（`config.toml` や `settings.json`）を生成・更新する。
+   - `gemini` エージェントの場合: `settings.json` のみを生成し、`config.toml` は出力しない。
+   - `codex` エージェントの場合: `config.toml` のみを生成し、`settings.json` は出力しない。
+4. LLMエージェントコンテナに`docker exec -it`でアタッチ
+
+#### オプション
+- `--cmd <command>`: デフォルトのLLM起動コマンドを上書きする（例: `--cmd bash`）。
+- `--no-config`: 起動時の設定ファイル自動生成をスキップする。
 
 ---
 

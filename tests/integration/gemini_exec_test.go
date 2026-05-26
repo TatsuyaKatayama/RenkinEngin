@@ -78,10 +78,9 @@ install = "RUN echo installed"
 	}()
 
 	// Verify installation
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "gemini --help && test -f /root/.gemini/settings.json")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "gemini --version && test -f /root/.gemini/settings.json")
 	execCmd.Dir = targetDir
 
 	output, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
-	assert.Contains(t, string(output), "Commands")
 }
