@@ -33,7 +33,9 @@ renkin <subcommand> [options]
 |-------------|------|
 | `assign`    | 設定ファイルからDockerfile・docker-compose.yml等を生成する |
 | `start`    | カレントディレクトリのdocker-compose.ymlを起動し、LLMエージェントにアタッチする |
-| `end`  | カレントディレクトリのdocker-compose.ymlのコンテナ群を停止・削除する |
+| `stop`  | カレントディレクトリのdocker-compose.ymlのコンテナ群と匿名ボリュームを停止・削除する |
+| `restart`   | コンテナを再起動する（オプションでリビルド可能） |
+| `kaiko`     | コンテナ、イメージ、ボリュームを完全に削除する（解雇/解体） |
 | `tool`      | プリセットされているツールの一覧表示や詳細確認を行う |
 
 ---
@@ -98,7 +100,46 @@ renkin start [--cmd <command>] [--no-config]
 
 ---
 
-### 2.4 renkin tool
+### 2.4 renkin stop
+
+```bash
+renkin stop
+```
+
+`docker compose down -v` を実行し、コンテナ、ネットワーク、および匿名ボリュームを削除する。ホストにマウントされた `workspace` ディレクトリは削除されない。
+
+---
+
+### 2.5 renkin restart
+
+```bash
+renkin restart [--rebuild]
+```
+
+環境を再起動する。
+1. `renkin stop` と同等の停止・削除処理を実行。
+2. `--rebuild` が指定されている場合、`docker compose build --no-cache` を実行してイメージを再構築する。
+3. `renkin start` を実行して環境を起動し、アタッチする。
+
+---
+
+### 2.6 renkin kaiko
+
+```bash
+renkin kaiko
+```
+
+プロジェクトに関連するすべてのリソースを完全に削除する。
+- 全コンテナの停止と削除
+- プロジェクトに関連するすべてのイメージの削除 (`--rmi all`)
+- すべてのボリュームの削除 (`-v`)
+- 孤立したコンテナの削除 (`--remove-orphans`)
+
+実行前に確認メッセージが表示される。
+
+---
+
+### 2.7 renkin tool
 
 ```bash
 renkin tool [list]         # プリセット一覧を表示

@@ -72,7 +72,7 @@ install = "RUN echo installed"
 		t.Fatalf("renkin start failed: %v\n%s", err, string(out))
 	}
 	defer func() {
-		downCmd := exec.Command(binPath, "end")
+		downCmd := exec.Command(binPath, "stop")
 		downCmd.Dir = targetDir
 		downCmd.Run()
 	}()

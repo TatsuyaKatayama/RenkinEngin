@@ -82,7 +82,7 @@ container = "/workspace"
 	assert.Contains(t, string(loadOutput), "true", "MSL v4.1.0 should be loadable")
 
 	// Cleanup
-	endCmd := exec.Command(binPath, "end")
+	endCmd := exec.Command(binPath, "stop")
 	endCmd.Dir = targetDir
 	endCmd.Run()
 }

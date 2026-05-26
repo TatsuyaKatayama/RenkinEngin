@@ -40,21 +40,35 @@
 
 ---
 
-### 3つのステップで労働開始 🚀
+### 連勤のライフサイクル 🚀
 
 1. **錬金（Assign）** ⚗️  
-   ```renkin assign ./ --llm gemini --tools openfoam2512```  
+   連勤の業務命令（環境構成）  
+   ```renkin assign ./ --llm gemini```  
 
 @@
 
-2. **連勤（Start）** ⚙️  
+2. **労働開始（Start）** ⚙️  
+   エージェントが働きだします。  
    ```renkin start```  
 
 @@
 
-3. **解雇** 🤖  
-   エージェントを解雇する場合（コンテナ削除）  
-   ```renkin start```  
+3. **一時停止（Stop）** 🛑  
+   ちょっと休憩。  
+   ```renkin stop```  
+
+@@
+
+4. **やり直し（Restart）** 🔄  
+   もう一度頑張れ。  
+   ```renkin restart [--rebuild]```  
+
+@@
+
+5. **完全解雇（Kaiko）** 🤖  
+   イメージも含め、全てを綺麗に消し去ります。  
+   ```renkin kaiko```  
 
 ---
 

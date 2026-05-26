@@ -75,7 +75,7 @@ container = "/workspace"
 	assert.Contains(t, string(output), "Usage: icoFoam")
 
 	// Cleanup
-	endCmd := exec.Command(binPath, "end")
+	endCmd := exec.Command(binPath, "stop")
 	endCmd.Dir = targetDir
 	endCmd.Run()
 }

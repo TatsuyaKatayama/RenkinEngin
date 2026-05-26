@@ -45,10 +45,25 @@ func main() {
 	startCmd.Flags().StringVar(&overrideCmd, "cmd", "", "Override default LLM command (e.g., --cmd bash)")
 	startCmd.Flags().BoolVar(&noConfig, "no-config", false, "Skip automatic configuration generation")
 
-	var endCmd = &cobra.Command{
-		Use:   "end",
-		Short: "Stop and remove the docker-compose environment",
-		RunE:  runEnd,
+	var stopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "Stop and remove the docker-compose environment (including volumes)",
+		RunE:  runStop,
+	}
+
+	var restartCmd = &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the docker-compose environment",
+		RunE:  runRestart,
+	}
+	restartCmd.Flags().StringVar(&overrideCmd, "cmd", "", "Override default LLM command (e.g., --cmd bash)")
+	var rebuild bool
+	restartCmd.Flags().BoolVar(&rebuild, "rebuild", false, "Rebuild images without cache before starting")
+
+	var kaikoCmd = &cobra.Command{
+		Use:   "kaiko",
+		Short: "Completely remove the docker-compose environment, including images and volumes",
+		RunE:  runKaiko,
 	}
 
 	var toolCmd = &cobra.Command{
@@ -58,7 +73,7 @@ func main() {
 		RunE:  runTool,
 	}
 
-	rootCmd.AddCommand(assignCmd, startCmd, endCmd, toolCmd)
+	rootCmd.AddCommand(assignCmd, startCmd, stopCmd, restartCmd, kaikoCmd, toolCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -328,9 +343,36 @@ func determineCommand(metaLLMCmd, overrideCmd string) string {
 	return metaLLMCmd
 }
 
-func runEnd(cmd *cobra.Command, args []string) error {
-	fmt.Println("Stopping containers...")
+func runStop(cmd *cobra.Command, args []string) error {
+	fmt.Println("Stopping containers and removing volumes...")
 	return docker.ComposeDown()
+}
+
+func runRestart(cmd *cobra.Command, args []string) error {
+	rebuild, _ := cmd.Flags().GetBool("rebuild")
+
+	fmt.Println("Restarting environment...")
+	if err := docker.ComposeDown(); err != nil {
+		return err
+	}
+
+	if rebuild {
+		fmt.Println("Rebuilding images (no-cache)...")
+		if err := docker.ComposeBuild(true); err != nil {
+			return err
+		}
+	}
+
+	return runStart(cmd, args)
+}
+
+func runKaiko(cmd *cobra.Command, args []string) error {
+	if !utils.AskForConfirmation("This will completely remove all containers, images, and volumes for this project. Are you sure?") {
+		fmt.Println("Aborted.")
+		return nil
+	}
+	fmt.Println("Executing Kaiko (thorough cleanup)...")
+	return docker.ComposeKaiko()
 }
 
 func runTool(cmd *cobra.Command, args []string) error {

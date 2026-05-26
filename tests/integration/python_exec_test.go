@@ -74,7 +74,7 @@ container = "/workspace"
 	assert.Contains(t, string(output), "success")
 
 	// Cleanup
-	endCmd := exec.Command(binPath, "end")
+	endCmd := exec.Command(binPath, "stop")
 	endCmd.Dir = targetDir
 	endCmd.Run()
 }

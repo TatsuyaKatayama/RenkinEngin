@@ -16,7 +16,25 @@ func ComposeUp() error {
 }
 
 func ComposeDown() error {
-	cmd := exec.Command("docker", "compose", "down")
+	cmd := exec.Command("docker", "compose", "down", "-v")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func ComposeBuild(noCache bool) error {
+	args := []string{"compose", "build"}
+	if noCache {
+		args = append(args, "--no-cache")
+	}
+	cmd := exec.Command("docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func ComposeKaiko() error {
+	cmd := exec.Command("docker", "compose", "down", "--rmi", "all", "-v", "--remove-orphans")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
