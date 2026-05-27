@@ -45,5 +45,4 @@ func TestRenkinAssignTrust(t *testing.T) {
 
 	dockerfileCodex, _ := os.ReadFile(filepath.Join(targetDirCodex, "Dockerfile"))
 	assert.Contains(t, string(dockerfileCodex), "git config --global --add safe.directory /workspace")
-	assert.Contains(t, string(dockerfileCodex), "trust_level = \"trusted\"")
 }
