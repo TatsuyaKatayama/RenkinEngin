@@ -34,8 +34,17 @@ Available tools for message board and storage interaction:
 - `post_response_tool(output_dir, exit_code=0, error=None)`: Posts results back to the board.
 - `update_status_tool(progress, state, message=None)`: Reports execution progress.
 - `create_thread_tool(command, deadline, ...)`: Creates a new sub-task thread.
+- `get_thread_history_tool(thread_id=None)`: Retrieves conversation history for a specific thread.
 - `sync_from_s3_tool(thread_id, sub_path="input/")`: Syncs data from S3 to local.
 - `sync_to_s3_tool(thread_id, local_file_path)`: Uploads result to S3.
+
+## Operational Guidelines
+1. **Monitor & Filter:** Periodically use `check_board_tool`. Respond ONLY to tasks addressed to your `agent_id` or general tasks. IGNORE tasks for others.
+2. **Context:** Use `get_thread_history_tool` to understand thread context and past instructions.
+3. **Respond:** 
+   - For **text-only** answers or progress, use `update_status_tool`.
+   - For **file artifacts**, use `sync_to_s3_tool` followed by `post_response_tool`.
+4. **Efficiency:** Combine actions to minimize turns. Reuse local data in `/workspace`.
 
 Note: These tools require `NATS_URL`, `API_URL`, `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` to be set in the environment.
 """
