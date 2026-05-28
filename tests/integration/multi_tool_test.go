@@ -78,6 +78,7 @@ preset = "python-post"
 	assert.Contains(t, string(outPy), "success")
 
 	// Cleanup
-	downCmd := exec.Command("docker", "compose", "-f", composeFile, "down")
+	downCmd := exec.Command(binPath, "kaiko", "--yes")
+	downCmd.Dir = targetDir
 	downCmd.Run()
 }

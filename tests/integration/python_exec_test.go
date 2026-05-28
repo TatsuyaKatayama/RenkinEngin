@@ -52,14 +52,14 @@ container = "/workspace"
 
 	// Build and Start
 	if os.Getenv("CI") != "" {
-		buildCmd = exec.Command("docker", "compose", "build", "--no-cache")
+		buildCmd = exec.Command("docker", "compose", "build")
 		buildCmd.Dir = targetDir
 		if out, err := buildCmd.CombinedOutput(); err != nil {
 			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
 		}
 	}
 
-	upCmd := exec.Command("docker", "compose", "up", "-d", "--build")
+	upCmd := exec.Command("docker", "compose", "up", "-d")
 	upCmd.Dir = targetDir
 	if out, err := upCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
@@ -74,7 +74,7 @@ container = "/workspace"
 	assert.Contains(t, string(output), "success")
 
 	// Cleanup
-	endCmd := exec.Command(binPath, "stop")
+	endCmd := exec.Command(binPath, "kaiko", "--yes")
 	endCmd.Dir = targetDir
 	endCmd.Run()
 }

@@ -53,7 +53,7 @@ preset = "forgejo-mcp"
 	assert.Contains(t, string(envContent), "FORGEJO_ACCESS_TOKEN=\n")
 	assert.Contains(t, string(envContent), "FORGEJO_USER_AGENT=\n")
 
-	buildComposeCmd := exec.Command("docker", "compose", "build", "--no-cache")
+	buildComposeCmd := exec.Command("docker", "compose", "build")
 	buildComposeCmd.Dir = targetDir
 	if out, err := buildComposeCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
@@ -65,7 +65,7 @@ preset = "forgejo-mcp"
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
 	}
 	defer func() {
-		downCmd := exec.Command("docker", "compose", "down")
+		downCmd := exec.Command(binPath, "kaiko", "--yes")
 		downCmd.Dir = targetDir
 		downCmd.Run()
 	}()

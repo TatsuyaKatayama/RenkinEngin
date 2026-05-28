@@ -52,7 +52,7 @@ container = "/workspace"
 
 	// Build and Start
 	if os.Getenv("CI") != "" {
-		buildCmd := exec.Command("docker", "compose", "build", "--no-cache")
+		buildCmd := exec.Command("docker", "compose", "build")
 		buildCmd.Dir = targetDir
 		if out, err := buildCmd.CombinedOutput(); err != nil {
 			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
@@ -75,7 +75,7 @@ container = "/workspace"
 	assert.Contains(t, string(output), "Usage: icoFoam")
 
 	// Cleanup
-	endCmd := exec.Command(binPath, "stop")
+	endCmd := exec.Command(binPath, "kaiko", "--yes")
 	endCmd.Dir = targetDir
 	endCmd.Run()
 }

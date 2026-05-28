@@ -65,6 +65,8 @@ func main() {
 		Short: "Completely remove the docker-compose environment, including images and volumes",
 		RunE:  runKaiko,
 	}
+	var force bool
+	kaikoCmd.Flags().BoolVarP(&force, "yes", "y", false, "Skip confirmation prompt")
 
 	var toolCmd = &cobra.Command{
 		Use:   "tool [preset_name|list]",
@@ -367,7 +369,8 @@ func runRestart(cmd *cobra.Command, args []string) error {
 }
 
 func runKaiko(cmd *cobra.Command, args []string) error {
-	if !utils.AskForConfirmation("This will completely remove all containers, images, and volumes for this project. Are you sure?") {
+	force, _ := cmd.Flags().GetBool("yes")
+	if !force && !utils.AskForConfirmation("This will completely remove all containers, images, and volumes for this project. Are you sure?") {
 		fmt.Println("Aborted.")
 		return nil
 	}

@@ -61,7 +61,7 @@ container = "/workspace"
 	err = os.WriteFile(filepath.Join(targetDir, ".env"), []byte("GIT_USER_NAME=EnvFileUser\nGIT_USER_EMAIL=\n"), 0644)
 	assert.NoError(t, err)
 
-	buildComposeCmd := exec.Command("docker", "compose", "build", "--no-cache")
+	buildComposeCmd := exec.Command("docker", "compose", "build")
 	buildComposeCmd.Dir = targetDir
 	if out, err := buildComposeCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
@@ -73,7 +73,7 @@ container = "/workspace"
 		t.Fatalf("renkin start failed: %v\n%s", err, string(out))
 	}
 	defer func() {
-		downCmd := exec.Command(binPath, "stop")
+		downCmd := exec.Command(binPath, "kaiko", "--yes")
 		downCmd.Dir = targetDir
 		downCmd.Run()
 	}()

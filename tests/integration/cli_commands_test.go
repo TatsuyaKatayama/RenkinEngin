@@ -73,14 +73,9 @@ func TestCLICommandLifecycle(t *testing.T) {
 	out, _ = psCmd.Output()
 	assert.Contains(t, string(out), "llm-agent")
 
-	// 5. Kaiko (need to provide 'y' to confirmation)
-	kaikoCmd := exec.Command(binPath, "kaiko")
+	// 5. Kaiko (using --yes flag)
+	kaikoCmd := exec.Command(binPath, "kaiko", "--yes")
 	kaikoCmd.Dir = targetDir
-	stdin, _ := kaikoCmd.StdinPipe()
-	go func() {
-		defer stdin.Close()
-		stdin.Write([]byte("y\n"))
-	}()
 	if out, err := kaikoCmd.CombinedOutput(); err != nil {
 		t.Fatalf("renkin kaiko failed: %v\n%s", err, string(out))
 	}
