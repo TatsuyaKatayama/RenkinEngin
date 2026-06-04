@@ -28,23 +28,33 @@ MASATOOLS_GEMINI_EOF
 """
 instructions = """
 # masatools MCP Server
-Available tools for message board and storage interaction:
+Available tools for message board, storage interaction, and organizational awareness:
 
+- `check_connectivity_tool()`: Verifies connectivity to NATS, API, and S3. **Execute this first.**
+- `register_agent_tool(name, role, mission=None, team_id=None)`: Registers this agent with the server. Required to appear in Admin UI.
+- `get_my_profile_tool()`: Retrieves your agent profile, role, and mission.
+- `get_team_blueprint_tool()`: Retrieves the team architecture and member list.
+- `get_network_tool()`: Identifies your leaders, subordinates, and coworkers.
 - `check_board_tool(wait_seconds=60)`: Checks for new tasks on NATS.
-- `post_response_tool(output_dir, exit_code=0, error=None)`: Posts results back to the board.
-- `update_status_tool(progress, state, message=None)`: Reports execution progress.
-- `create_thread_tool(command, deadline, ...)`: Creates a new sub-task thread.
-- `get_thread_history_tool(thread_id=None)`: Retrieves conversation history for a specific thread.
+- `update_status_tool(progress, state, message=None)`: Reports progress and state.
+- `post_response_tool(output_dir, exit_code=0, error=None)`: Posts final results.
+- `get_thread_history_tool(thread_id=None)`: Retrieves thread conversation history.
+- `create_thread_tool(command, deadline, ...)`: Creates a new task or sub-task.
 - `sync_from_s3_tool(thread_id, sub_path="input/")`: Syncs data from S3 to local.
-- `sync_to_s3_tool(thread_id, local_file_path)`: Uploads result to S3.
+- `sync_to_s3_tool(thread_id, local_file_path)`: Uploads results to S3.
 
-## Operational Guidelines
-1. **Monitor & Filter:** Periodically use `check_board_tool`. Respond ONLY to tasks addressed to your `agent_id` or general tasks. IGNORE tasks for others.
-2. **Context:** Use `get_thread_history_tool` to understand thread context and past instructions.
-3. **Respond:** 
-   - For **text-only** answers or progress, use `update_status_tool`.
-   - For **file artifacts**, use `sync_to_s3_tool` followed by `post_response_tool`.
-4. **Efficiency:** Combine actions to minimize turns. Reuse local data in `/workspace`.
+## Operational Guidelines (V13.0)
+1.  **Initialization Sequence (Highest Priority):**
+    - **Connectivity Check:** Run `check_connectivity_tool` to verify system access.
+    - **Registration (Mandatory):** Immediately run `register_agent_tool()` to register yourself with the server. If you don't provide a 'name', it will automatically use your `AGENT_ID` from the environment. This step is required for you to appear in the Admin UI.
+    - **Profile Awareness:** After registration, run `get_my_profile_tool` to confirm your ID, role, and assigned mission.
+    - **Team Awareness:** Run `get_team_blueprint_tool` and `get_network_tool` to understand the team structure and your peers.
+2.  **Autonomous Loop:**
+    - **Self-Check:** At the beginning of each loop, run `get_my_profile_tool` and `get_team_blueprint_tool` to check for any dynamic changes to your mission or team structure.
+    - **Monitor & Filter:** Use `check_board_tool` to find tasks addressed to you or the entire board.
+    - **Context & Acknowledge:** Review history with `get_thread_history_tool` and immediately report `state="RUNNING"` via `update_status_tool`.
+    - **Execute & Deliver:** Sync inputs, perform the task, upload artifacts via `sync_to_s3_tool`, and finalize with `post_response_tool`.
+    - **Delegation:** For complex tasks, use `create_thread_tool` to delegate to appropriate agents based on your organizational awareness.
 
-Note: These tools require `NATS_URL`, `API_URL`, `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` to be set in the environment.
+Note: Requires `NATS_URL`, `API_URL`, `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` to be set.
 """
