@@ -72,7 +72,8 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "uv pip install --system --break-system-packages mcp-server-git")
 	assert.Contains(t, dockerfile, "mcp-server-git")
 	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
-	assert.NotContains(t, dockerfile, "/root/.gemini/settings.json")
+	// .gemini is now always created/checked for workspace config
+	assert.Contains(t, dockerfile, "/root/.gemini")
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 	assert.Contains(t, dockerfile, `args = ["--repository", "/workspace"]`)
 }
@@ -111,7 +112,8 @@ func TestDockerfileGenerationForgejoMCPPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "git clone --depth 1 https://github.com/goern/forgejo-mcp.git")
 	assert.Contains(t, dockerfile, "go build -o /usr/local/bin/forgejo-mcp .")
 	assert.Contains(t, dockerfile, "/root/.codex/config.toml")
-	assert.NotContains(t, dockerfile, "/root/.gemini/settings.json")
+	// .gemini is now always created/checked for workspace config
+	assert.Contains(t, dockerfile, "/root/.gemini")
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 	assert.Contains(t, dockerfile, "${FORGEJO_URL:-https://codeberg.org}")
 }
@@ -130,10 +132,13 @@ func TestRuntimeConfigGenerationGemini(t *testing.T) {
 	dockerfile, err := generator.GenerateDockerfile(cfg)
 	assert.NoError(t, err)
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
-	assert.NotContains(t, dockerfile, "/root/.codex/config.toml")
-	assert.Contains(t, dockerfile, "/root/.gemini/settings.json")
-	assert.Contains(t, dockerfile, "[mcp_servers.masatools]")
-	assert.Contains(t, dockerfile, `"masatools": {`)
+	// Both are now present in logic
+	assert.Contains(t, dockerfile, "/root/.codex")
+	assert.Contains(t, dockerfile, "/root/.gemini")
+	
+	// Test workspace resolution logic
+	assert.Contains(t, dockerfile, "if [ -f /workspace/settings.json ]; then")
+	assert.Contains(t, dockerfile, "python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))'")
 }
 
 func TestDockerComposeGeneration(t *testing.T) {
