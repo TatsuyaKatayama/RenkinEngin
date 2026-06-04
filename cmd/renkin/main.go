@@ -234,6 +234,23 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Generate LLM configs in workspace
+	geminiSettings := generator.GenerateGeminiSettings(cfg)
+	if geminiSettings != "" {
+		if err := os.WriteFile(filepath.Join(workspaceDir, "settings.json"), []byte(geminiSettings), 0644); err != nil {
+			return err
+		}
+		fmt.Println("Generated workspace/settings.json")
+	}
+
+	codexConfig := generator.GenerateCodexConfig(cfg)
+	if codexConfig != "" {
+		if err := os.WriteFile(filepath.Join(workspaceDir, "config.toml"), []byte(codexConfig), 0644); err != nil {
+			return err
+		}
+		fmt.Println("Generated workspace/config.toml")
+	}
+
 	var llmCmd string
 	if lConf != nil {
 		llmCmd = lConf.Cmd

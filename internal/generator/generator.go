@@ -90,6 +90,51 @@ type GeneratorData struct {
 	RuntimeConfigInstall string
 }
 
+func GenerateGeminiSettings(cfg config.Config) string {
+	var servers []string
+	for _, t := range cfg.ToolList.Tools {
+		if t.MCPConfigGemini != "" {
+			servers = append(servers, t.MCPConfigGemini)
+		}
+	}
+
+	if len(servers) == 0 {
+		return ""
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("{\n  \"mcpServers\": {\n")
+	for i, s := range servers {
+		buf.WriteString(s)
+		if i < len(servers)-1 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("\n")
+	}
+	buf.WriteString("  }\n}\n")
+	return buf.String()
+}
+
+func GenerateCodexConfig(cfg config.Config) string {
+	var configs []string
+	for _, t := range cfg.ToolList.Tools {
+		if t.MCPConfigCodex != "" {
+			configs = append(configs, t.MCPConfigCodex)
+		}
+	}
+
+	if len(configs) == 0 {
+		return ""
+	}
+
+	var buf bytes.Buffer
+	for _, c := range configs {
+		buf.WriteString(c)
+		buf.WriteString("\n")
+	}
+	return buf.String()
+}
+
 func GenerateDockerfile(cfg config.Config) (string, error) {
 	tmpl, err := template.New("Dockerfile").Parse(dockerfileTemplate)
 	if err != nil {
@@ -133,6 +178,23 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 	script.WriteString(": > \"$RENKIN_GEMINI_MCP_SERVERS\"\n\n")
 	script.WriteString("renkin_add_codex_config() {\n  cat >> \"$RENKIN_CODEX_CONFIG\"\n  printf '\\n' >> \"$RENKIN_CODEX_CONFIG\"\n}\n\n")
 	script.WriteString("renkin_add_gemini_mcp_server() {\n  tmp=\"$(mktemp)\"\n  cat > \"$tmp\"\n  tr -d '\\n' < \"$tmp\" >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  printf '\\n' >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  rm -f \"$tmp\"\n}\n\n")
+	llmType := ""
+	if cfg.LLM != nil {
+		llmType, _ = cfg.LLM.GetType()
+	}
+
+	// 1. If workspace config exists, use it and resolve env vars
+	script.WriteString("# Resolve and place workspace configs if they exist\n")
+	script.WriteString("if [ -f /workspace/settings.json ]; then\n")
+	script.WriteString("  mkdir -p /root/.gemini\n")
+	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/settings.json > /root/.gemini/settings.json\n")
+	script.WriteString("fi\n")
+	script.WriteString("if [ -f /workspace/config.toml ]; then\n")
+	script.WriteString("  mkdir -p /root/.codex\n")
+	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/config.toml > /root/.codex/config.toml\n")
+	script.WriteString("fi\n\n")
+
+	// 2. Add servers from tools (legacy/startup way)
 	for _, item := range startup {
 		script.WriteString(item)
 		if len(item) == 0 || item[len(item)-1] != '\n' {
@@ -141,30 +203,36 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 		script.WriteByte('\n')
 	}
 
-	llmType := ""
-	if cfg.LLM != nil {
-		llmType, _ = cfg.LLM.GetType()
-	}
-
+	// 3. Finalize and merge if necessary (legacy way for tools not using workspace/settings.json)
 	if llmType != "gemini" {
-		script.WriteString("cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
+		script.WriteString("if [ ! -f /root/.codex/config.toml ]; then\n")
+		script.WriteString("  cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
+		script.WriteString("fi\n")
 	}
 	if llmType != "codex" {
-		script.WriteString("{\n")
-		script.WriteString("  printf '{\\n  \"mcpServers\": {\\n'\n")
-		script.WriteString("  first=1\n")
-		script.WriteString("  while IFS= read -r server; do\n")
-		script.WriteString("    [ -n \"$server\" ] || continue\n")
-		script.WriteString("    if [ \"$first\" -eq 1 ]; then\n")
-		script.WriteString("      printf '%s' \"$server\"\n")
-		script.WriteString("      first=0\n")
-		script.WriteString("    else\n")
-		script.WriteString("      printf ',\\n%s' \"$server\"\n")
-		script.WriteString("    fi\n")
-		script.WriteString("  done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
-		script.WriteString("  if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
-		script.WriteString("  printf '  }\\n}\\n'\n")
-		script.WriteString("} > /root/.gemini/settings.json\n")
+		script.WriteString("# Only generate if settings.json doesn't exist or we have new servers to add\n")
+		script.WriteString("if [ -s \"$RENKIN_GEMINI_MCP_SERVERS\" ]; then\n")
+		script.WriteString("  {\n")
+		script.WriteString("    printf '{\\n  \"mcpServers\": {\\n'\n")
+		script.WriteString("    first=1\n")
+		script.WriteString("    while IFS= read -r server; do\n")
+		script.WriteString("      [ -n \"$server\" ] || continue\n")
+		script.WriteString("      if [ \"$first\" -eq 1 ]; then\n")
+		script.WriteString("        printf '%s' \"$server\"\n")
+		script.WriteString("        first=0\n")
+		script.WriteString("      else\n")
+		script.WriteString("        printf ',\\n%s' \"$server\"\n")
+		script.WriteString("      fi\n")
+		script.WriteString("    done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
+		script.WriteString("    if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
+		script.WriteString("    printf '  }\\n}\\n'\n")
+		script.WriteString("  } > /tmp/generated-settings.json\n")
+		script.WriteString("  # If /root/.gemini/settings.json exists, we should ideally merge, but for now just overwrite if not present\n")
+		script.WriteString("  if [ ! -f /root/.gemini/settings.json ]; then\n")
+		script.WriteString("    mkdir -p /root/.gemini\n")
+		script.WriteString("    cp /tmp/generated-settings.json /root/.gemini/settings.json\n")
+		script.WriteString("  fi\n")
+		script.WriteString("fi\n")
 	}
 	script.WriteString("RENKIN_CONFIG_EOF\n")
 	script.WriteString("RUN chmod +x /usr/local/bin/renkin-generate-llm-config\n")

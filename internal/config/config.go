@@ -29,15 +29,17 @@ type LLMConf struct {
 }
 
 type Tool struct {
-	Name         string   `toml:"name"`
-	Type         string   `toml:"type"`
-	Preset       string   `toml:"preset"`
-	Install      string   `toml:"install"`
-	Startup      string   `toml:"startup"`
-	Instructions string   `toml:"instructions"`
-	Image        string   `toml:"image"`
-	Port         int      `toml:"port"`
-	Environment  []string `toml:"environment"`
+	Name             string   `toml:"name"`
+	Type             string   `toml:"type"`
+	Preset           string   `toml:"preset"`
+	Install          string   `toml:"install"`
+	Startup          string   `toml:"startup"`
+	MCPConfigGemini  string   `toml:"mcp_config_gemini"`
+	MCPConfigCodex   string   `toml:"mcp_config_codex"`
+	Instructions     string   `toml:"instructions"`
+	Image            string   `toml:"image"`
+	Port             int      `toml:"port"`
+	Environment      []string `toml:"environment"`
 }
 
 type ToolList struct {
@@ -178,6 +180,12 @@ func applyToolOverrides(pt *Tool, t Tool) {
 	}
 	if t.Startup != "" {
 		pt.Startup = t.Startup
+	}
+	if t.MCPConfigGemini != "" {
+		pt.MCPConfigGemini = t.MCPConfigGemini
+	}
+	if t.MCPConfigCodex != "" {
+		pt.MCPConfigCodex = t.MCPConfigCodex
 	}
 	if t.Instructions != "" {
 		pt.Instructions = t.Instructions
