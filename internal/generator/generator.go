@@ -55,16 +55,24 @@ const dockerComposeTemplate = `services:
       - "{{.}}"
 {{- end}}
 {{end}}{{end}}
-{{if or .Docker.Mounts (and .LLM .LLM.AuthMount)}}
+{{if or .Docker.Mounts (and .LLM (or .LLM.AuthMount .LLM.HomeMounts))}}
     volumes:
 {{- range .Docker.Mounts}}
       - {{.Host}}:{{.Container}}
 {{- end}}
-{{if .LLM}}{{if .LLM.AuthMount}}
+{{if .LLM}}
+{{- if .LLM.AuthMount}}
 {{- range (index .ExtraMounts "llm-auth")}}
       - {{.Host}}:{{.Container}}
 {{- end}}
-{{- end}}{{- end}}
+{{- end}}
+{{- if .LLM.HomeMounts}}
+{{- range .LLM.HomeMounts}}
+      - ./{{.HostDir}}:{{.ContainerDir}}
+{{- end}}
+{{- end}}
+      - ./.renkin/conf:/renkin-conf:ro
+{{- end}}
 {{- end}}
 
 {{- range .ToolList.Tools}}{{if eq .Type "mcp"}}
@@ -187,12 +195,23 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 	script.WriteString("renkin_add_gemini_mcp_server() {\n  tmp=\"$(mktemp)\"\n  cat > \"$tmp\"\n  tr -d '\\n' < \"$tmp\" >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  printf '\\n' >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  rm -f \"$tmp\"\n}\n\n")
 
 	// 1. Resolve and place workspace configs if they exist
-	script.WriteString("# Resolve and place workspace configs if they exist\n")
+	script.WriteString("# Resolve and place configs from /renkin-conf if they exist\n")
 	if cfg.LLM != nil {
 		for _, rc := range cfg.LLM.RuntimeConfigs {
-			script.WriteString(fmt.Sprintf("if [ -f /workspace/%s ]; then\n", rc.Source))
+			script.WriteString(fmt.Sprintf("if [ -f /renkin-conf/%s ]; then\n", rc.Source))
 			script.WriteString(fmt.Sprintf("  mkdir -p %s\n", filepath.Dir(rc.Target)))
-			script.WriteString(fmt.Sprintf("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/%s > %s\n", rc.Source, rc.Target))
+			script.WriteString(fmt.Sprintf("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /renkin-conf/%s > %s\n", rc.Source, rc.Target))
+			script.WriteString("fi\n")
+		}
+		// Also handle SkillFile if defined
+		skillName, _ := cfg.LLM.GetSkillFileName()
+		if skillName != "" {
+			script.WriteString(fmt.Sprintf("if [ -f /renkin-conf/%s ]; then\n", skillName))
+			// Skill files are best placed in the home directory or where the tool looks.
+			// For agy/gemini, we'll also symlink it to /workspace/ so it's active but the source is hidden.
+			// BUT if the user wants workspace clean, we should NOT symlink. 
+			// Instead, we'll place it in the home dir.
+			script.WriteString(fmt.Sprintf("  cp /renkin-conf/%s /root/.gemini/%s\n", skillName, skillName))
 			script.WriteString("fi\n")
 		}
 	}
@@ -207,37 +226,6 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 		script.WriteByte('\n')
 	}
 
-	// 3. Finalize and merge if necessary (legacy way for tools not using workspace/settings.json)
-	if cfg.LLM != nil && cfg.LLM.AgentConfigTarget != "" {
-		script.WriteString(fmt.Sprintf("if [ ! -f %s ]; then\n", cfg.LLM.AgentConfigTarget))
-		script.WriteString(fmt.Sprintf("  cp \"$RENKIN_CODEX_CONFIG\" %s\n", cfg.LLM.AgentConfigTarget))
-		script.WriteString("fi\n")
-	}
-
-	if cfg.LLM != nil && cfg.LLM.MCPConfigTarget != "" {
-		script.WriteString("# Only generate if target doesn't exist or we have new servers to add\n")
-		script.WriteString("if [ -s \"$RENKIN_GEMINI_MCP_SERVERS\" ]; then\n")
-		script.WriteString("  {\n")
-		script.WriteString("    printf '{\\n  \"mcpServers\": {\\n'\n")
-		script.WriteString("    first=1\n")
-		script.WriteString("    while IFS= read -r server; do\n")
-		script.WriteString("      [ -n \"$server\" ] || continue\n")
-		script.WriteString("      if [ \"$first\" -eq 1 ]; then\n")
-		script.WriteString("        printf '%s' \"$server\"\n")
-		script.WriteString("        first=0\n")
-		script.WriteString("      else\n")
-		script.WriteString("        printf ',\\n%s' \"$server\"\n")
-		script.WriteString("      fi\n")
-		script.WriteString("    done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
-		script.WriteString("    if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
-		script.WriteString("    printf '  }\\n}\\n'\n")
-		script.WriteString("  } > /tmp/generated-settings.json\n")
-		script.WriteString(fmt.Sprintf("  if [ ! -f %s ]; then\n", cfg.LLM.MCPConfigTarget))
-		script.WriteString(fmt.Sprintf("    mkdir -p %s\n", filepath.Dir(cfg.LLM.MCPConfigTarget)))
-		script.WriteString(fmt.Sprintf("    cp /tmp/generated-settings.json %s\n", cfg.LLM.MCPConfigTarget))
-		script.WriteString("  fi\n")
-		script.WriteString("fi\n")
-	}
 	script.WriteString("RENKIN_CONFIG_EOF\n")
 	script.WriteString("RUN chmod +x /usr/local/bin/renkin-generate-llm-config\n")
 

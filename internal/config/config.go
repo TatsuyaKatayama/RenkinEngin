@@ -30,18 +30,22 @@ type RuntimeConfig struct {
 	Target string `toml:"target"`
 }
 
+type HomeMount struct {
+	HostDir      string `toml:"host_dir"`
+	ContainerDir string `toml:"container_dir"`
+}
+
 type LLMConf struct {
-	Cmd               string          `toml:"cmd"`
-	Install           string          `toml:"install"`
-	Startup           string          `toml:"startup"`
-	Ports             []string        `toml:"ports"`
-	SkillFile         string          `toml:"skill_file"`
-	EnvKeys           []string        `toml:"env_keys"`
-	DefaultEnv        []string        `toml:"default_env"`
-	RuntimeConfigs    []RuntimeConfig `toml:"runtime_configs"`
-	AuthMount         *AuthMountConf  `toml:"auth_mount"`
-	MCPConfigTarget   string          `toml:"mcp_config_target"`
-	AgentConfigTarget string          `toml:"agent_config_target"`
+	Cmd            string          `toml:"cmd"`
+	Install        string          `toml:"install"`
+	Startup        string          `toml:"startup"`
+	Ports          []string        `toml:"ports"`
+	SkillFile      string          `toml:"skill_file"`
+	EnvKeys        []string        `toml:"env_keys"`
+	DefaultEnv     []string        `toml:"default_env"`
+	RuntimeConfigs []RuntimeConfig `toml:"runtime_configs"`
+	HomeMounts     []HomeMount     `toml:"home_mounts"`
+	AuthMount      *AuthMountConf  `toml:"auth_mount"`
 }
 
 type Tool struct {

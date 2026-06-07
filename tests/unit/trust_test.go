@@ -12,7 +12,8 @@ func TestWorkspaceTrustEnvironment(t *testing.T) {
 	// Test Gemini
 	cfgGemini := config.Config{
 		LLM: &config.LLMConf{
-			Cmd: "gemini",
+			Cmd:        "gemini",
+			DefaultEnv: []string{"GEMINI_TRUST_WORKSPACE=true"},
 		},
 	}
 	composeGemini, err := generator.GenerateDockerCompose(cfgGemini)
@@ -22,7 +23,8 @@ func TestWorkspaceTrustEnvironment(t *testing.T) {
 	// Test Codex
 	cfgCodex := config.Config{
 		LLM: &config.LLMConf{
-			Cmd: "codex",
+			Cmd:        "codex",
+			DefaultEnv: []string{"CODEX_TRUST_WORKSPACE=true"},
 		},
 	}
 	composeCodex, err := generator.GenerateDockerCompose(cfgCodex)

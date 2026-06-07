@@ -234,29 +234,44 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Generate LLM configs in workspace
+	// Create home mount and conf directories
+	renkinConfDir := filepath.Join(targetDir, ".renkin", "conf")
+	if err := utils.EnsureDir(renkinConfDir); err != nil {
+		return fmt.Errorf("failed to create renkin conf directory: %v", err)
+	}
+
+	if cfg.LLM != nil {
+		for _, hm := range cfg.LLM.HomeMounts {
+			hmDir := filepath.Join(targetDir, hm.HostDir)
+			if err := utils.EnsureDir(hmDir); err != nil {
+				return fmt.Errorf("failed to create home mount directory %s: %v", hmDir, err)
+			}
+		}
+	}
+
+	// Generate LLM configs in .renkin/conf
 	geminiSettings := generator.GenerateGeminiSettings(cfg)
 	if geminiSettings != "" {
-		if err := os.WriteFile(filepath.Join(workspaceDir, "settings.json"), []byte(geminiSettings), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(renkinConfDir, "settings.json"), []byte(geminiSettings), 0644); err != nil {
 			return err
 		}
-		fmt.Println("Generated workspace/settings.json")
+		fmt.Println("Generated .renkin/conf/settings.json")
 	}
 
 	antigravityConfig := generator.GenerateAntigravityMCPConfig(cfg)
 	if antigravityConfig != "" {
-		if err := os.WriteFile(filepath.Join(workspaceDir, "mcp_config.json"), []byte(antigravityConfig), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(renkinConfDir, "mcp_config.json"), []byte(antigravityConfig), 0644); err != nil {
 			return err
 		}
-		fmt.Println("Generated workspace/mcp_config.json")
+		fmt.Println("Generated .renkin/conf/mcp_config.json")
 	}
 
 	codexConfig := generator.GenerateCodexConfig(cfg)
 	if codexConfig != "" {
-		if err := os.WriteFile(filepath.Join(workspaceDir, "config.toml"), []byte(codexConfig), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(renkinConfDir, "config.toml"), []byte(codexConfig), 0644); err != nil {
 			return err
 		}
-		fmt.Println("Generated workspace/config.toml")
+		fmt.Println("Generated .renkin/conf/config.toml")
 	}
 
 	var llmCmd string
@@ -296,9 +311,10 @@ func runAssign(cmd *cobra.Command, args []string) error {
 			aggregatedSkills.WriteString("\n")
 		}
 
-		if err := os.WriteFile(filepath.Join(workspaceDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(renkinConfDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
 			return err
 		}
+		fmt.Printf("Generated .renkin/conf/%s\n", skillName)
 	}
 
 	// Save metadata

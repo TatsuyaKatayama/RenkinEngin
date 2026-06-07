@@ -1,6 +1,6 @@
 cmd = "agy"
 install = """
-RUN apt-get update && apt-get install -y curl ca-certificates git && \
+RUN apt-get update && apt-get install -y curl ca-certificates git python3 && \
     curl -fsSL https://antigravity.google/cli/install.sh | bash && \
     mv /root/.local/bin/agy /usr/local/bin/agy && \
     git config --global --add safe.directory /workspace
@@ -9,10 +9,8 @@ skill_file = "GEMINI.md"
 env_keys = ["GEMINI_API_KEY"]
 default_env = ["GEMINI_TRUST_WORKSPACE=true"]
 runtime_configs = [
-    { source = "mcp_config.json", target = "/workspace/.agents/mcp_config.json" }
+    { source = "mcp_config.json", target = "/root/.gemini/config/mcp_config.json" }
 ]
-mcp_config_target = "/workspace/.agents/mcp_config.json"
-# antigravity doesn't typically need a browser auth mount, but we can add it if needed
-# [auth_mount]
-# host_path = "~/.gemini/antigravity-cli"
-# container_path = "/root/.gemini/antigravity-cli"
+home_mounts = [
+    { host_dir = ".renkin/gemini", container_dir = "/root/.gemini" }
+]

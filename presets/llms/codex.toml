@@ -1,9 +1,9 @@
 cmd = "codex"
 install = """
-RUN apt-get update && apt-get install -y curl ca-certificates git && \
+RUN apt-get update && apt-get install -y curl ca-certificates git python3 && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g @google/codex-cli && \
+    npm install -g @openai/codex && \
     git config --global --add safe.directory /workspace
 """
 skill_file = "AGENTS.md"
@@ -12,7 +12,9 @@ default_env = ["CODEX_TRUST_WORKSPACE=true"]
 runtime_configs = [
     { source = "config.toml", target = "/root/.codex/config.toml" }
 ]
-agent_config_target = "/root/.codex/config.toml"
+home_mounts = [
+    { host_dir = ".renkin/codex", container_dir = "/root/.codex" }
+]
 
 [auth_mount]
 host_path = "~/.codex"

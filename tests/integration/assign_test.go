@@ -27,7 +27,7 @@ func TestRenkinAssign(t *testing.T) {
 host = "./workspace"
 container = "/workspace"
 `
-	llmConf := `cmd = "claude"
+	llmConf := `cmd = "gemini"
 install = "RUN echo installed"
 `
 	toolList := `[[tool]]
@@ -59,7 +59,7 @@ install = "RUN echo openfoam"
 	assert.FileExists(t, filepath.Join(targetDir, "Dockerfile"))
 	assert.FileExists(t, filepath.Join(targetDir, "docker-compose.yml"))
 	assert.FileExists(t, filepath.Join(targetDir, ".env"))
-	assert.FileExists(t, filepath.Join(targetDir, "workspace", "CLAUDE.md"))
+	assert.FileExists(t, filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md"))
 	assert.FileExists(t, filepath.Join(targetDir, ".renkin_metadata.toml"))
 
 	// Verify content
@@ -68,5 +68,5 @@ install = "RUN echo openfoam"
 	assert.Contains(t, string(df), "RUN echo openfoam")
 
 	env, _ := os.ReadFile(filepath.Join(targetDir, ".env"))
-	assert.Contains(t, string(env), "ANTHROPIC_API_KEY=")
+	assert.Contains(t, string(env), "GEMINI_API_KEY=")
 }

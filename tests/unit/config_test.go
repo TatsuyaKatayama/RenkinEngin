@@ -11,10 +11,9 @@ import (
 
 func TestLLMConfParse(t *testing.T) {
 	input := `
-cmd = "claude --dangerously-skip-permissions"
-auth_mode = "api_key"
+cmd = "gemini"
 install = """
-RUN curl -fsSL https://claude.ai/install.sh | sh
+RUN curl -fsSL https://example.com/install.sh | sh
 """
 `
 	tmpDir, _ := os.MkdirTemp("", "renkin-test")
@@ -24,8 +23,7 @@ RUN curl -fsSL https://claude.ai/install.sh | sh
 
 	conf, err := config.LoadLLMConf(path)
 	assert.NoError(t, err)
-	assert.Equal(t, "claude --dangerously-skip-permissions", conf.Cmd)
-	assert.Equal(t, "api_key", conf.AuthMode)
+	assert.Equal(t, "gemini", conf.Cmd)
 	assert.Contains(t, conf.Install, "curl -fsSL")
 }
 
@@ -37,9 +35,7 @@ func TestLLMConfParseError(t *testing.T) {
 		name  string
 		input string
 	}{
-		{"No cmd", `auth_mode = "api_key"`},
-		{"Invalid auth_mode", `cmd = "claude"
-auth_mode = "ssh"`},
+		{"No cmd", `install = "echo install"`},
 		{"TOML syntax error", `cmd = `},
 	}
 
@@ -242,10 +238,9 @@ func TestLLMTypeIdentification(t *testing.T) {
 		cmd      string
 		expected string
 	}{
-		{"claude --dangerously-skip-permissions", "claude"},
 		{"gemini", "gemini"},
+		{"agy", "agy"},
 		{"codex -c", "codex"},
-		{"opencode", "opencode"},
 		{"unknown", "unknown"},
 	}
 
@@ -296,7 +291,7 @@ install = "RUN echo forgejo"
 	}
 
 	err := toolList.ResolvePresets(presetsDir)
-	assert.NoError(t, err) // This currently fails with "duplicate tool name: git"
+	assert.NoError(t, err) 
 	assert.Len(t, toolList.Tools, 2)
 	assert.Equal(t, "git", toolList.Tools[0].Name)
 	assert.Equal(t, "forgejo", toolList.Tools[1].Name)
@@ -305,8 +300,7 @@ install = "RUN echo forgejo"
 func TestCollectEnvKeys(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{
-			Cmd:      "gemini",
-			AuthMode: "api_key",
+			Cmd: "gemini",
 		},
 		ToolList: config.ToolList{
 			Tools: []config.Tool{
@@ -315,7 +309,6 @@ func TestCollectEnvKeys(t *testing.T) {
 			},
 		},
 	}
-	// Note: GetActiveProxyKeys might return some keys if run in an environment with proxy
 	keys := cfg.CollectEnvKeys()
 	assert.Contains(t, keys, "GEMINI_API_KEY")
 	assert.Contains(t, keys, "VAR1")
@@ -337,10 +330,9 @@ func TestSkillFileName(t *testing.T) {
 		cmd      string
 		expected string
 	}{
-		{"claude", "CLAUDE.md"},
 		{"gemini", "GEMINI.md"},
+		{"agy", "GEMINI.md"},
 		{"codex", "AGENTS.md"},
-		{"opencode", "AGENTS.md"},
 	}
 
 	for _, tt := range tests {

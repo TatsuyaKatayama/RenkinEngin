@@ -1,6 +1,6 @@
 cmd = "gemini"
 install = """
-RUN apt-get update && apt-get install -y curl ca-certificates git && \
+RUN apt-get update && apt-get install -y curl ca-certificates git python3 && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g @google/gemini-cli && \
@@ -12,7 +12,9 @@ default_env = ["GEMINI_TRUST_WORKSPACE=true"]
 runtime_configs = [
     { source = "settings.json", target = "/root/.gemini/settings.json" }
 ]
-mcp_config_target = "/root/.gemini/settings.json"
+home_mounts = [
+    { host_dir = ".renkin/gemini", container_dir = "/root/.gemini" }
+]
 
 [auth_mount]
 host_path = "~/.config/gemini"

@@ -69,8 +69,8 @@ preset = "tool2"
 	output, err := assignCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
 
-	// Verify synthesized skill file
-	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
+	// Verify synthesized skill file in .renkin/conf
+	skillFile := filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md")
 	assert.FileExists(t, skillFile)
 
 	content, err := os.ReadFile(skillFile)
@@ -140,7 +140,7 @@ preset = "tool1"
 	assert.NoError(t, err, string(output))
 
 	// Verify synthesized skill file exists and contains tool instructions
-	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
+	skillFile := filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md")
 	assert.FileExists(t, skillFile)
 
 	content, err := os.ReadFile(skillFile)
@@ -191,7 +191,7 @@ install = "RUN echo dummy"
 	assert.NoError(t, err, string(output))
 
 	// Verify synthesized skill file exists even if empty
-	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
+	skillFile := filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md")
 	assert.FileExists(t, skillFile)
 
 	content, err := os.ReadFile(skillFile)

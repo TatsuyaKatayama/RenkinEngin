@@ -37,10 +37,18 @@ container = "/workspace"
 		t.Fatalf("failed to read preset: %v", err)
 	}
 
-	toolList := `[[tool]]
+	toolList := `
+[[tool]]
 name = "minimal-tool"
 type = "shell"
 install = "RUN echo installed"
+
+[[tool]]
+name = "mcp-tool"
+type = "mcp"
+mcp_config_codex = '[[mcp-tool]]\ncommand = "echo"'
+image = "alpine"
+port = 1234
 `
 
 	fixtureDir := filepath.Join(tmpDir, "fixtures")
