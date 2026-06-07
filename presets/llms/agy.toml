@@ -1,0 +1,8 @@
+cmd = "agy"
+auth_mode = "api_key"
+install = """
+RUN apt-get update && apt-get install -y curl ca-certificates git && \
+    curl -fsSL https://antigravity.google/cli/install.sh | bash && \
+    mv /root/.local/bin/agy /usr/local/bin/agy && \
+    git config --global --add safe.directory /workspace
+"""

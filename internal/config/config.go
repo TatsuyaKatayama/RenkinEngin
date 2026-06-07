@@ -225,11 +225,9 @@ func (l *LLMConf) GetSkillFileName() (string, error) {
 		return "", err
 	}
 	switch llmType {
-	case "claude":
-		return "CLAUDE.md", nil
-	case "gemini":
+	case "gemini", "agy":
 		return "GEMINI.md", nil
-	case "codex", "opencode":
+	case "codex":
 		return "AGENTS.md", nil
 	default:
 		return "AGENTS.md", nil
@@ -239,14 +237,10 @@ func (l *LLMConf) GetSkillFileName() (string, error) {
 func (l *LLMConf) GetEnvKeys() []string {
 	llmType, _ := l.GetType()
 	switch llmType {
-	case "claude":
-		return []string{"ANTHROPIC_API_KEY"}
-	case "gemini":
+	case "gemini", "agy":
 		return []string{"GEMINI_API_KEY"}
 	case "codex":
 		return []string{"OPENAI_API_KEY"}
-	case "opencode":
-		return []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"}
 	default:
 		return []string{}
 	}

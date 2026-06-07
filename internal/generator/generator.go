@@ -115,6 +115,10 @@ func GenerateGeminiSettings(cfg config.Config) string {
 	return buf.String()
 }
 
+func GenerateAntigravityMCPConfig(cfg config.Config) string {
+	return GenerateGeminiSettings(cfg)
+}
+
 func GenerateCodexConfig(cfg config.Config) string {
 	var configs []string
 	for _, t := range cfg.ToolList.Tools {
@@ -188,6 +192,10 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 	script.WriteString("if [ -f /workspace/settings.json ]; then\n")
 	script.WriteString("  mkdir -p /root/.gemini\n")
 	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/settings.json > /root/.gemini/settings.json\n")
+	script.WriteString("fi\n")
+	script.WriteString("if [ -f /workspace/mcp_config.json ]; then\n")
+	script.WriteString("  mkdir -p /workspace/.agents\n")
+	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/mcp_config.json > /workspace/.agents/mcp_config.json\n")
 	script.WriteString("fi\n")
 	script.WriteString("if [ -f /workspace/config.toml ]; then\n")
 	script.WriteString("  mkdir -p /root/.codex\n")

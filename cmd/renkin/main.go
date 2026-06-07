@@ -243,6 +243,14 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		fmt.Println("Generated workspace/settings.json")
 	}
 
+	antigravityConfig := generator.GenerateAntigravityMCPConfig(cfg)
+	if antigravityConfig != "" {
+		if err := os.WriteFile(filepath.Join(workspaceDir, "mcp_config.json"), []byte(antigravityConfig), 0644); err != nil {
+			return err
+		}
+		fmt.Println("Generated workspace/mcp_config.json")
+	}
+
 	codexConfig := generator.GenerateCodexConfig(cfg)
 	if codexConfig != "" {
 		if err := os.WriteFile(filepath.Join(workspaceDir, "config.toml"), []byte(codexConfig), 0644); err != nil {
