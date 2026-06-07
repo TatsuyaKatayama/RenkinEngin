@@ -113,11 +113,11 @@ func TestRuntimeConfigGenerationGemini(t *testing.T) {
 	dockerfile, err := generator.GenerateDockerfile(cfg)
 	assert.NoError(t, err)
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
-	
+
 	// Test new config resolution logic from /renkin-conf
 	assert.Contains(t, dockerfile, "if [ -f /renkin-conf/settings.json ]; then")
 	assert.Contains(t, dockerfile, "python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /renkin-conf/settings.json > /root/.gemini/settings.json")
-	
+
 	// Test SkillFile placement
 	assert.Contains(t, dockerfile, "if [ -f /renkin-conf/GEMINI.md ]; then")
 	assert.Contains(t, dockerfile, "cp /renkin-conf/GEMINI.md /root/.gemini/GEMINI.md")
@@ -159,22 +159,6 @@ func TestDockerComposeGenerationHomeMounts(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, compose, "- ./.renkin/gemini:/root/.gemini")
 	assert.Contains(t, compose, "- ./.renkin/conf:/renkin-conf:ro")
-}
-
-func TestDockerComposeGenerationAuthMount(t *testing.T) {
-	cfg := config.Config{
-		Docker: config.DockerConf{},
-		LLM: &config.LLMConf{
-			Cmd: "gemini",
-			AuthMount: &config.AuthMountConf{
-				HostPath:      "~/.config/gemini",
-				ContainerPath: "/root/.config/gemini",
-			},
-		},
-	}
-	compose, err := generator.GenerateDockerCompose(cfg)
-	assert.NoError(t, err)
-	assert.Contains(t, compose, "/root/.config/gemini")
 }
 
 func TestEnvGenerationCodex(t *testing.T) {

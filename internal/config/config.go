@@ -20,11 +20,6 @@ type Mount struct {
 	Container string `toml:"container"`
 }
 
-type AuthMountConf struct {
-	HostPath      string `toml:"host_path"`
-	ContainerPath string `toml:"container_path"`
-}
-
 type RuntimeConfig struct {
 	Source string `toml:"source"`
 	Target string `toml:"target"`
@@ -45,21 +40,20 @@ type LLMConf struct {
 	DefaultEnv     []string        `toml:"default_env"`
 	RuntimeConfigs []RuntimeConfig `toml:"runtime_configs"`
 	HomeMounts     []HomeMount     `toml:"home_mounts"`
-	AuthMount      *AuthMountConf  `toml:"auth_mount"`
 }
 
 type Tool struct {
-	Name             string   `toml:"name"`
-	Type             string   `toml:"type"`
-	Preset           string   `toml:"preset"`
-	Install          string   `toml:"install"`
-	Startup          string   `toml:"startup"`
-	MCPConfigGemini  string   `toml:"mcp_config_gemini"`
-	MCPConfigCodex   string   `toml:"mcp_config_codex"`
-	Instructions     string   `toml:"instructions"`
-	Image            string   `toml:"image"`
-	Port             int      `toml:"port"`
-	Environment      []string `toml:"environment"`
+	Name            string   `toml:"name"`
+	Type            string   `toml:"type"`
+	Preset          string   `toml:"preset"`
+	Install         string   `toml:"install"`
+	Startup         string   `toml:"startup"`
+	MCPConfigGemini string   `toml:"mcp_config_gemini"`
+	MCPConfigCodex  string   `toml:"mcp_config_codex"`
+	Instructions    string   `toml:"instructions"`
+	Image           string   `toml:"image"`
+	Port            int      `toml:"port"`
+	Environment     []string `toml:"environment"`
 }
 
 type ToolList struct {

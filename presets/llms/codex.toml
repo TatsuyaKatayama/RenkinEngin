@@ -15,7 +15,3 @@ runtime_configs = [
 home_mounts = [
     { host_dir = ".renkin/codex", container_dir = "/root/.codex" }
 ]
-
-[auth_mount]
-host_path = "~/.codex"
-container_path = "/root/.codex"

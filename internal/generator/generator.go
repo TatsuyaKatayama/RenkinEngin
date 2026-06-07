@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -55,17 +54,12 @@ const dockerComposeTemplate = `services:
       - "{{.}}"
 {{- end}}
 {{end}}{{end}}
-{{if or .Docker.Mounts (and .LLM (or .LLM.AuthMount .LLM.HomeMounts))}}
+{{if or .Docker.Mounts (and .LLM .LLM.HomeMounts)}}
     volumes:
 {{- range .Docker.Mounts}}
       - {{.Host}}:{{.Container}}
 {{- end}}
 {{if .LLM}}
-{{- if .LLM.AuthMount}}
-{{- range (index .ExtraMounts "llm-auth")}}
-      - {{.Host}}:{{.Container}}
-{{- end}}
-{{- end}}
 {{- if .LLM.HomeMounts}}
 {{- range .LLM.HomeMounts}}
       - ./{{.HostDir}}:{{.ContainerDir}}
@@ -97,7 +91,6 @@ type GeneratorData struct {
 	EnvKeys              []string
 	DefaultEnv           []string
 	ProxyKeys            []string
-	ExtraMounts          map[string][]config.Mount
 	RuntimeConfigInstall string
 }
 
@@ -209,7 +202,7 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 			script.WriteString(fmt.Sprintf("if [ -f /renkin-conf/%s ]; then\n", skillName))
 			// Skill files are best placed in the home directory or where the tool looks.
 			// For agy/gemini, we'll also symlink it to /workspace/ so it's active but the source is hidden.
-			// BUT if the user wants workspace clean, we should NOT symlink. 
+			// BUT if the user wants workspace clean, we should NOT symlink.
 			// Instead, we'll place it in the home dir.
 			script.WriteString(fmt.Sprintf("  cp /renkin-conf/%s /root/.gemini/%s\n", skillName, skillName))
 			script.WriteString("fi\n")
@@ -226,6 +219,28 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 		script.WriteByte('\n')
 	}
 
+	script.WriteString("if [ -s \"$RENKIN_CODEX_CONFIG\" ] && [ ! -f /root/.codex/config.toml ]; then\n")
+	script.WriteString("  mkdir -p /root/.codex\n")
+	script.WriteString("  cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
+	script.WriteString("fi\n")
+	script.WriteString("if [ -s \"$RENKIN_GEMINI_MCP_SERVERS\" ] && [ ! -f /root/.gemini/settings.json ]; then\n")
+	script.WriteString("  mkdir -p /root/.gemini\n")
+	script.WriteString("  {\n")
+	script.WriteString("    printf '{\\n  \"mcpServers\": {\\n'\n")
+	script.WriteString("    first=1\n")
+	script.WriteString("    while IFS= read -r server; do\n")
+	script.WriteString("      [ -n \"$server\" ] || continue\n")
+	script.WriteString("      if [ \"$first\" -eq 1 ]; then\n")
+	script.WriteString("        printf '%s' \"$server\"\n")
+	script.WriteString("        first=0\n")
+	script.WriteString("      else\n")
+	script.WriteString("        printf ',\\n%s' \"$server\"\n")
+	script.WriteString("      fi\n")
+	script.WriteString("    done < \"$RENKIN_GEMINI_MCP_SERVERS\"\n")
+	script.WriteString("    if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
+	script.WriteString("    printf '  }\\n}\\n'\n")
+	script.WriteString("  } > /root/.gemini/settings.json\n")
+	script.WriteString("fi\n")
 	script.WriteString("RENKIN_CONFIG_EOF\n")
 	script.WriteString("RUN chmod +x /usr/local/bin/renkin-generate-llm-config\n")
 
@@ -239,24 +254,14 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 	}
 
 	data := GeneratorData{
-		Config:      cfg,
-		EnvKeys:     cfg.CollectEnvKeys(),
-		DefaultEnv:  []string{},
-		ProxyKeys:   config.GetActiveProxyKeys(),
-		ExtraMounts: make(map[string][]config.Mount),
+		Config:     cfg,
+		EnvKeys:    cfg.CollectEnvKeys(),
+		DefaultEnv: []string{},
+		ProxyKeys:  config.GetActiveProxyKeys(),
 	}
 
 	if cfg.LLM != nil {
 		data.DefaultEnv = append(data.DefaultEnv, cfg.LLM.DefaultEnv...)
-
-		if cfg.LLM.AuthMount != nil {
-			home, _ := config.GetHomeDir()
-			hostPath := strings.Replace(cfg.LLM.AuthMount.HostPath, "~", home, 1)
-			data.ExtraMounts["llm-auth"] = []config.Mount{{
-				Host:      hostPath,
-				Container: cfg.LLM.AuthMount.ContainerPath,
-			}}
-		}
 	}
 
 	var buf bytes.Buffer

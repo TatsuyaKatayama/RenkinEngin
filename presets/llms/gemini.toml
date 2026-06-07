@@ -15,7 +15,3 @@ runtime_configs = [
 home_mounts = [
     { host_dir = ".renkin/gemini", container_dir = "/root/.gemini" }
 ]
-
-[auth_mount]
-host_path = "~/.config/gemini"
-container_path = "/root/.config/gemini"
