@@ -1,5 +1,4 @@
 cmd = "gemini"
-auth_mode = "api_key"
 install = """
 RUN apt-get update && apt-get install -y curl ca-certificates git && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
@@ -7,3 +6,14 @@ RUN apt-get update && apt-get install -y curl ca-certificates git && \
     npm install -g @google/gemini-cli && \
     git config --global --add safe.directory /workspace
 """
+skill_file = "GEMINI.md"
+env_keys = ["GEMINI_API_KEY"]
+default_env = ["GEMINI_TRUST_WORKSPACE=true"]
+runtime_configs = [
+    { source = "settings.json", target = "/root/.gemini/settings.json" }
+]
+mcp_config_target = "/root/.gemini/settings.json"
+
+[auth_mount]
+host_path = "~/.config/gemini"
+container_path = "/root/.config/gemini"

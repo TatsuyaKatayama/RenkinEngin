@@ -20,12 +20,28 @@ type Mount struct {
 	Container string `toml:"container"`
 }
 
+type AuthMountConf struct {
+	HostPath      string `toml:"host_path"`
+	ContainerPath string `toml:"container_path"`
+}
+
+type RuntimeConfig struct {
+	Source string `toml:"source"`
+	Target string `toml:"target"`
+}
+
 type LLMConf struct {
-	Cmd      string   `toml:"cmd"`
-	AuthMode string   `toml:"auth_mode"`
-	Install  string   `toml:"install"`
-	Startup  string   `toml:"startup"`
-	Ports    []string `toml:"ports"`
+	Cmd               string          `toml:"cmd"`
+	Install           string          `toml:"install"`
+	Startup           string          `toml:"startup"`
+	Ports             []string        `toml:"ports"`
+	SkillFile         string          `toml:"skill_file"`
+	EnvKeys           []string        `toml:"env_keys"`
+	DefaultEnv        []string        `toml:"default_env"`
+	RuntimeConfigs    []RuntimeConfig `toml:"runtime_configs"`
+	AuthMount         *AuthMountConf  `toml:"auth_mount"`
+	MCPConfigTarget   string          `toml:"mcp_config_target"`
+	AgentConfigTarget string          `toml:"agent_config_target"`
 }
 
 type Tool struct {
@@ -63,15 +79,11 @@ func LoadDockerConf(path string) (DockerConf, error) {
 
 func LoadLLMConf(path string) (*LLMConf, error) {
 	var conf LLMConf
-	conf.AuthMode = "api_key" // Default
 	if _, err := toml.DecodeFile(path, &conf); err != nil {
 		return nil, err
 	}
 	if conf.Cmd == "" {
 		return nil, fmt.Errorf("llm.conf: cmd is required")
-	}
-	if conf.AuthMode != "api_key" && conf.AuthMode != "browser" {
-		return nil, fmt.Errorf("llm.conf: invalid auth_mode: %s", conf.AuthMode)
 	}
 	return &conf, nil
 }
@@ -220,6 +232,9 @@ func (l *LLMConf) GetType() (string, error) {
 }
 
 func (l *LLMConf) GetSkillFileName() (string, error) {
+	if l.SkillFile != "" {
+		return l.SkillFile, nil
+	}
 	llmType, err := l.GetType()
 	if err != nil {
 		return "", err
@@ -235,6 +250,9 @@ func (l *LLMConf) GetSkillFileName() (string, error) {
 }
 
 func (l *LLMConf) GetEnvKeys() []string {
+	if len(l.EnvKeys) > 0 {
+		return l.EnvKeys
+	}
 	llmType, _ := l.GetType()
 	switch llmType {
 	case "gemini", "agy":
@@ -252,7 +270,7 @@ func GetHomeDir() (string, error) {
 
 func (c *Config) CollectEnvKeys() []string {
 	var envKeys []string
-	if c.LLM != nil && c.LLM.AuthMode != "browser" {
+	if c.LLM != nil {
 		envKeys = append(envKeys, c.LLM.GetEnvKeys()...)
 	}
 	envKeys = append(envKeys, GetActiveProxyKeys()...)

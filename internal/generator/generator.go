@@ -2,6 +2,9 @@ package generator
 
 import (
 	"bytes"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -52,12 +55,12 @@ const dockerComposeTemplate = `services:
       - "{{.}}"
 {{- end}}
 {{end}}{{end}}
-{{if or .Docker.Mounts (and .LLM (eq .LLM.AuthMode "browser"))}}
+{{if or .Docker.Mounts (and .LLM .LLM.AuthMount)}}
     volumes:
 {{- range .Docker.Mounts}}
       - {{.Host}}:{{.Container}}
 {{- end}}
-{{if .LLM}}{{if eq .LLM.AuthMode "browser"}}
+{{if .LLM}}{{if .LLM.AuthMount}}
 {{- range (index .ExtraMounts "llm-auth")}}
       - {{.Host}}:{{.Container}}
 {{- end}}
@@ -182,25 +185,18 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 	script.WriteString(": > \"$RENKIN_GEMINI_MCP_SERVERS\"\n\n")
 	script.WriteString("renkin_add_codex_config() {\n  cat >> \"$RENKIN_CODEX_CONFIG\"\n  printf '\\n' >> \"$RENKIN_CODEX_CONFIG\"\n}\n\n")
 	script.WriteString("renkin_add_gemini_mcp_server() {\n  tmp=\"$(mktemp)\"\n  cat > \"$tmp\"\n  tr -d '\\n' < \"$tmp\" >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  printf '\\n' >> \"$RENKIN_GEMINI_MCP_SERVERS\"\n  rm -f \"$tmp\"\n}\n\n")
-	llmType := ""
-	if cfg.LLM != nil {
-		llmType, _ = cfg.LLM.GetType()
-	}
 
-	// 1. If workspace config exists, use it and resolve env vars
+	// 1. Resolve and place workspace configs if they exist
 	script.WriteString("# Resolve and place workspace configs if they exist\n")
-	script.WriteString("if [ -f /workspace/settings.json ]; then\n")
-	script.WriteString("  mkdir -p /root/.gemini\n")
-	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/settings.json > /root/.gemini/settings.json\n")
-	script.WriteString("fi\n")
-	script.WriteString("if [ -f /workspace/mcp_config.json ]; then\n")
-	script.WriteString("  mkdir -p /workspace/.agents\n")
-	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/mcp_config.json > /workspace/.agents/mcp_config.json\n")
-	script.WriteString("fi\n")
-	script.WriteString("if [ -f /workspace/config.toml ]; then\n")
-	script.WriteString("  mkdir -p /root/.codex\n")
-	script.WriteString("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/config.toml > /root/.codex/config.toml\n")
-	script.WriteString("fi\n\n")
+	if cfg.LLM != nil {
+		for _, rc := range cfg.LLM.RuntimeConfigs {
+			script.WriteString(fmt.Sprintf("if [ -f /workspace/%s ]; then\n", rc.Source))
+			script.WriteString(fmt.Sprintf("  mkdir -p %s\n", filepath.Dir(rc.Target)))
+			script.WriteString(fmt.Sprintf("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /workspace/%s > %s\n", rc.Source, rc.Target))
+			script.WriteString("fi\n")
+		}
+	}
+	script.WriteString("\n")
 
 	// 2. Add servers from tools (legacy/startup way)
 	for _, item := range startup {
@@ -212,13 +208,14 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 	}
 
 	// 3. Finalize and merge if necessary (legacy way for tools not using workspace/settings.json)
-	if llmType != "gemini" {
-		script.WriteString("if [ ! -f /root/.codex/config.toml ]; then\n")
-		script.WriteString("  cp \"$RENKIN_CODEX_CONFIG\" /root/.codex/config.toml\n")
+	if cfg.LLM != nil && cfg.LLM.AgentConfigTarget != "" {
+		script.WriteString(fmt.Sprintf("if [ ! -f %s ]; then\n", cfg.LLM.AgentConfigTarget))
+		script.WriteString(fmt.Sprintf("  cp \"$RENKIN_CODEX_CONFIG\" %s\n", cfg.LLM.AgentConfigTarget))
 		script.WriteString("fi\n")
 	}
-	if llmType != "codex" {
-		script.WriteString("# Only generate if settings.json doesn't exist or we have new servers to add\n")
+
+	if cfg.LLM != nil && cfg.LLM.MCPConfigTarget != "" {
+		script.WriteString("# Only generate if target doesn't exist or we have new servers to add\n")
 		script.WriteString("if [ -s \"$RENKIN_GEMINI_MCP_SERVERS\" ]; then\n")
 		script.WriteString("  {\n")
 		script.WriteString("    printf '{\\n  \"mcpServers\": {\\n'\n")
@@ -235,10 +232,9 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 		script.WriteString("    if [ \"$first\" -eq 0 ]; then printf '\\n'; fi\n")
 		script.WriteString("    printf '  }\\n}\\n'\n")
 		script.WriteString("  } > /tmp/generated-settings.json\n")
-		script.WriteString("  # If /root/.gemini/settings.json exists, we should ideally merge, but for now just overwrite if not present\n")
-		script.WriteString("  if [ ! -f /root/.gemini/settings.json ]; then\n")
-		script.WriteString("    mkdir -p /root/.gemini\n")
-		script.WriteString("    cp /tmp/generated-settings.json /root/.gemini/settings.json\n")
+		script.WriteString(fmt.Sprintf("  if [ ! -f %s ]; then\n", cfg.LLM.MCPConfigTarget))
+		script.WriteString(fmt.Sprintf("    mkdir -p %s\n", filepath.Dir(cfg.LLM.MCPConfigTarget)))
+		script.WriteString(fmt.Sprintf("    cp /tmp/generated-settings.json %s\n", cfg.LLM.MCPConfigTarget))
 		script.WriteString("  fi\n")
 		script.WriteString("fi\n")
 	}
@@ -263,24 +259,15 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 	}
 
 	if cfg.LLM != nil {
-		llmType, _ := cfg.LLM.GetType()
-		if llmType == "gemini" {
-			data.DefaultEnv = append(data.DefaultEnv, "GEMINI_TRUST_WORKSPACE=true")
-		} else if llmType == "codex" {
-			data.DefaultEnv = append(data.DefaultEnv, "CODEX_TRUST_WORKSPACE=true")
-		}
-	}
+		data.DefaultEnv = append(data.DefaultEnv, cfg.LLM.DefaultEnv...)
 
-	if cfg.LLM != nil && cfg.LLM.AuthMode == "browser" {
-		llmType, _ := cfg.LLM.GetType()
-		home, _ := config.GetHomeDir()
-		switch llmType {
-		case "claude":
-			data.ExtraMounts["llm-auth"] = []config.Mount{{Host: home + "/.claude", Container: "/root/.claude"}}
-		case "gemini":
-			data.ExtraMounts["llm-auth"] = []config.Mount{{Host: home + "/.config/gemini", Container: "/root/.config/gemini"}}
-		case "codex":
-			data.ExtraMounts["llm-auth"] = []config.Mount{{Host: home + "/.codex", Container: "/root/.codex"}}
+		if cfg.LLM.AuthMount != nil {
+			home, _ := config.GetHomeDir()
+			hostPath := strings.Replace(cfg.LLM.AuthMount.HostPath, "~", home, 1)
+			data.ExtraMounts["llm-auth"] = []config.Mount{{
+				Host:      hostPath,
+				Container: cfg.LLM.AuthMount.ContainerPath,
+			}}
 		}
 	}
 

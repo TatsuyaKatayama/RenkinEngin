@@ -39,7 +39,13 @@ port = 8080
 
 	// Create a dummy llm.conf
 	llmConfPath := filepath.Join(tempDir, "llm.conf")
-	err = os.WriteFile(llmConfPath, []byte(`cmd = "agy"`), 0644)
+	err = os.WriteFile(llmConfPath, []byte(`
+cmd = "agy"
+runtime_configs = [
+    { source = "mcp_config.json", target = "/workspace/.agents/mcp_config.json" }
+]
+mcp_config_target = "/workspace/.agents/mcp_config.json"
+`), 0644)
 	if err != nil {
 		t.Fatalf("failed to create llm.conf: %v", err)
 	}

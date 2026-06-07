@@ -1,9 +1,19 @@
 cmd = "codex"
-auth_mode = "api_key"
 install = """
 RUN apt-get update && apt-get install -y curl ca-certificates git && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g @openai/codex && \
+    npm install -g @google/codex-cli && \
     git config --global --add safe.directory /workspace
 """
+skill_file = "AGENTS.md"
+env_keys = ["OPENAI_API_KEY"]
+default_env = ["CODEX_TRUST_WORKSPACE=true"]
+runtime_configs = [
+    { source = "config.toml", target = "/root/.codex/config.toml" }
+]
+agent_config_target = "/root/.codex/config.toml"
+
+[auth_mount]
+host_path = "~/.codex"
+container_path = "/root/.codex"
