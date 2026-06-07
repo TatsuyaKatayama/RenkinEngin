@@ -16,7 +16,11 @@ func TestDockerExecForgejoMCPPreset(t *testing.T) {
 
 	tmpDir, _ := os.MkdirTemp("", "renkin-forgejo-mcp-test")
 	defer os.RemoveAll(tmpDir)
+	t.Setenv("GIT_USER_NAME", "test-user")
+	t.Setenv("GIT_USER_EMAIL", "test@example.com")
 	t.Setenv("OPENAI_API_KEY", "test-api-key")
+	t.Setenv("FORGEJO_URL", "https://codeberg.org")
+	t.Setenv("FORGEJO_ACCESS_TOKEN", "test-access-token")
 	t.Setenv("FORGEJO_USER_AGENT", "test-user-agent")
 
 	binPath := filepath.Join(tmpDir, "renkin")
