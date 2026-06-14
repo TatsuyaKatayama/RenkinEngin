@@ -1,0 +1,11 @@
+[mcp_servers.masatools]
+command = "/bin/bash"
+args = ["-lc", "exec python -m masatools.adapters.mcp.server"]
+[mcp_servers.masatools.env]
+AGENT_ID = "$AGENT_ID"
+NATS_URL = "$NATS_URL"
+API_URL = "$API_URL"
+S3_ENDPOINT = "$S3_ENDPOINT"
+S3_BUCKET = "$S3_BUCKET"
+AWS_ACCESS_KEY_ID = "$AWS_ACCESS_KEY_ID"
+AWS_SECRET_ACCESS_KEY = "$AWS_SECRET_ACCESS_KEY"

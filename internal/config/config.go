@@ -42,6 +42,7 @@ type LLMConf struct {
 	HomeMounts     []HomeMount     `toml:"home_mounts"`
 	LoopCmd        string          `toml:"loop_cmd"`
 	RestartPolicy  string          `toml:"restart_policy"`
+	RestartDelay   int             `toml:"restart_delay"`
 	LogDir         string          `toml:"log_dir"`
 	StdoutLog      string          `toml:"stdout_log"`
 	StderrLog      string          `toml:"stderr_log"`
@@ -166,21 +167,126 @@ func hasToolOverrides(t Tool) bool {
 		len(t.Environment) > 0
 }
 
-func loadPresetTools(presetsDir string, preset string) (ToolList, error) {
-	presetPath := filepath.Join(presetsDir, preset+".toml")
-	if _, err := os.Stat(presetPath); os.IsNotExist(err) {
-		return ToolList{}, fmt.Errorf("preset %s not found in %s", preset, presetsDir)
+type ToolPresetData struct {
+	ToolList         ToolList
+	BotPrompt        string
+	BotLoop          string
+	Instructions     string
+	MCPConfigGemini  string
+	MCPConfigCodex   string
+}
+
+func LoadLLMPreset(presetsDir string, presetName string) (*LLMConf, string, string, string, error) {
+	dirPath := filepath.Join(presetsDir, presetName)
+	fi, err := os.Stat(dirPath)
+	if err == nil && fi.IsDir() {
+		// Loaded as directory preset
+		tomlPath := filepath.Join(dirPath, "llm.toml")
+		conf, err := LoadLLMConf(tomlPath)
+		if err != nil {
+			return nil, "", "", "", err
+		}
+
+		var botPrompt, botLoop, skills string
+		if b, err := os.ReadFile(filepath.Join(dirPath, "bot_prompt.md")); err == nil {
+			botPrompt = string(b)
+		}
+		if b, err := os.ReadFile(filepath.Join(dirPath, "bot-loop.sh")); err == nil {
+			botLoop = string(b)
+		}
+		if b, err := os.ReadFile(filepath.Join(dirPath, "skills.md")); err == nil {
+			skills = string(b)
+		}
+
+		return conf, botPrompt, botLoop, skills, nil
+	}
+
+	// Fallback to single TOML file
+	tomlPath := filepath.Join(presetsDir, presetName+".toml")
+	conf, err := LoadLLMConf(tomlPath)
+	if err != nil {
+		return nil, "", "", "", err
+	}
+	return conf, "", "", "", nil
+}
+
+func LoadToolPreset(presetsDir string, presetName string) (ToolPresetData, error) {
+	dirPath := filepath.Join(presetsDir, presetName)
+	fi, err := os.Stat(dirPath)
+	if err == nil && fi.IsDir() {
+		// Loaded as directory preset
+		tomlPath := filepath.Join(dirPath, "tool.toml")
+		
+		var presetTools ToolList
+		if _, err := toml.DecodeFile(tomlPath, &presetTools); err != nil {
+			return ToolPresetData{}, fmt.Errorf("failed to parse preset tool.toml %s: %v", presetName, err)
+		}
+
+		var botPrompt, botLoop, instructions, mcpGemini, mcpCodex string
+		if b, err := os.ReadFile(filepath.Join(dirPath, "bot_prompt.md")); err == nil {
+			botPrompt = string(b)
+		}
+		if b, err := os.ReadFile(filepath.Join(dirPath, "bot-loop.sh")); err == nil {
+			botLoop = string(b)
+		}
+		if b, err := os.ReadFile(filepath.Join(dirPath, "instructions.md")); err == nil {
+			instructions = string(b)
+		}
+		if b, err := os.ReadFile(filepath.Join(dirPath, "mcp_config_gemini.json")); err == nil {
+			mcpGemini = string(b)
+		}
+		if b, err := os.ReadFile(filepath.Join(dirPath, "mcp_config_codex.toml")); err == nil {
+			mcpCodex = string(b)
+		}
+
+		// Inject files into the parsed tool list if they exist
+		for i := range presetTools.Tools {
+			if instructions != "" {
+				presetTools.Tools[i].Instructions = instructions
+			}
+			if mcpGemini != "" {
+				presetTools.Tools[i].MCPConfigGemini = mcpGemini
+			}
+			if mcpCodex != "" {
+				presetTools.Tools[i].MCPConfigCodex = mcpCodex
+			}
+		}
+
+		return ToolPresetData{
+			ToolList:        presetTools,
+			BotPrompt:       botPrompt,
+			BotLoop:         botLoop,
+			Instructions:    instructions,
+			MCPConfigGemini: mcpGemini,
+			MCPConfigCodex:  mcpCodex,
+		}, nil
+	}
+
+	// Fallback to single TOML file
+	tomlPath := filepath.Join(presetsDir, presetName+".toml")
+	if _, err := os.Stat(tomlPath); os.IsNotExist(err) {
+		return ToolPresetData{}, fmt.Errorf("preset %s not found in %s", presetName, presetsDir)
 	}
 
 	var presetTools ToolList
-	if _, err := toml.DecodeFile(presetPath, &presetTools); err != nil {
-		return ToolList{}, fmt.Errorf("failed to parse preset %s: %v", preset, err)
+	if _, err := toml.DecodeFile(tomlPath, &presetTools); err != nil {
+		return ToolPresetData{}, fmt.Errorf("failed to parse preset %s: %v", presetName, err)
 	}
 
-	if len(presetTools.Tools) == 0 {
+	return ToolPresetData{
+		ToolList: presetTools,
+	}, nil
+}
+
+func loadPresetTools(presetsDir string, preset string) (ToolList, error) {
+	tpData, err := LoadToolPreset(presetsDir, preset)
+	if err != nil {
+		return ToolList{}, err
+	}
+	if len(tpData.ToolList.Tools) == 0 {
 		return ToolList{}, fmt.Errorf("preset %s contains no tools", preset)
 	}
-	return presetTools, nil
+	return tpData.ToolList, nil
 }
 
 func applyToolOverrides(pt *Tool, t Tool) {
@@ -313,6 +419,7 @@ type Metadata struct {
 	EnvKeys       []string `toml:"env_keys"`
 	LoopCmd       string   `toml:"loop_cmd"`
 	RestartPolicy string   `toml:"restart_policy"`
+	RestartDelay   int      `toml:"restart_delay"`
 	LogDir        string   `toml:"log_dir"`
 	StdoutLog     string   `toml:"stdout_log"`
 	StderrLog     string   `toml:"stderr_log"`

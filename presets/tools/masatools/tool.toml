@@ -1,0 +1,17 @@
+[[tool]]
+preset = "python-post"
+
+[[tool]]
+name = "masatools-mcp"
+type = "shell"
+environment = ["NATS_URL", "API_URL", "S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+install = """
+RUN /usr/local/bin/uv pip install --system --break-system-packages \
+    nats-py[nkeys] \
+    boto3 \
+    pydantic \
+    python-ulid \
+    mcp \
+    httpx && \
+    /usr/local/bin/uv pip install --system --break-system-packages "masatools @ git+https://github.com/TatsuyaKatayama/masatools.git@develop"
+"""

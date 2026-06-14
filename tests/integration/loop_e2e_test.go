@@ -29,13 +29,14 @@ func TestLoopE2E(t *testing.T) {
 		t.Fatalf("failed to build renkin: %v", err)
 	}
 
-	dockerConf := `base_image = "ubuntu:24.04"
-[[mount]]
-host = "./workspace"
-container = "/workspace"
-`
+	// Create a dynamic directory preset for fake-llm to test Directory-based Presets & Synthesis
+	fakePresetDir := "../../presets/llms/fake-llm"
+	if err := os.MkdirAll(fakePresetDir, 0755); err != nil {
+		t.Fatalf("failed to create fake preset dir: %v", err)
+	}
+	defer os.RemoveAll(fakePresetDir)
 
-	llmConf := `cmd = "fake-llm"
+	llmTOML := `cmd = "fake-llm"
 loop_cmd = 'fake-llm --session-id {session_id} -r latest --prompt "$(cat /renkin-conf/bot_prompt.md)"'
 restart_policy = "on-failure"
 log_dir = ".renkin/logs"
@@ -47,19 +48,39 @@ RUN apt-get update && apt-get install -y curl && \
     chmod +x /usr/local/bin/fake-llm
 """
 `
+	botLoopScript := `#!/bin/bash
+# True Renkin Loop Command Runner (fake-llm)
+AGENT_ID=${AGENT_ID:-default-agent}
+echo "Starting True Renkin Loop Iteration for ${AGENT_ID}..."
+{llm_cmd}
+`
+
+	botPromptMarkdown := `## Task
+Analyze the files in your workspace. Check if there are any new files or changes, write a brief summary report of the workspace status to stdout, and print the current time.
+`
+
+	os.WriteFile(filepath.Join(fakePresetDir, "llm.toml"), []byte(llmTOML), 0644)
+	os.WriteFile(filepath.Join(fakePresetDir, "bot-loop.sh"), []byte(botLoopScript), 0755)
+	os.WriteFile(filepath.Join(fakePresetDir, "bot_prompt.md"), []byte(botPromptMarkdown), 0644)
+
+	dockerConf := `base_image = "ubuntu:24.04"
+[[mount]]
+host = "./workspace"
+container = "/workspace"
+`
 
 	fixtureDir := filepath.Join(tmpDir, "fixtures")
 	os.MkdirAll(fixtureDir, 0755)
 	os.WriteFile(filepath.Join(fixtureDir, "docker.conf"), []byte(dockerConf), 0644)
-	os.WriteFile(filepath.Join(fixtureDir, "llm.conf"), []byte(llmConf), 0644)
 	os.WriteFile(filepath.Join(fixtureDir, "tool_list.toml"), []byte("[[tool]]\nname=\"test\"\ntype=\"shell\"\ninstall=\"RUN echo install\""), 0644)
 
 	targetDir := filepath.Join(tmpDir, "target")
 	assignCmd := exec.Command(binPath, "assign", targetDir,
 		"--docker", filepath.Join(fixtureDir, "docker.conf"),
-		"--llm", filepath.Join(fixtureDir, "llm.conf"),
+		"--llm", "fake-llm",
 		"--tools", filepath.Join(fixtureDir, "tool_list.toml"),
 	)
+	assignCmd.Dir = "../../"
 	if out, err := assignCmd.CombinedOutput(); err != nil {
 		t.Fatalf("renkin assign failed: %v\n%s", err, string(out))
 	}
@@ -87,9 +108,10 @@ RUN apt-get update && apt-get install -y curl && \
 	// it should run exactly once and exit successfully! So we can wait for it.
 	startCmd := exec.Command(binPath, "start", "--loop")
 	startCmd.Dir = targetDir
-	out, err := startCmd.CombinedOutput()
-	t.Logf("DEBUG: startCmd Output:\n%s", string(out))
-	assert.NoError(t, err, string(out))
+	startCmd.Stdout = os.Stdout
+	startCmd.Stderr = os.Stderr
+	err = startCmd.Run()
+	assert.NoError(t, err)
 
 	// Verify stdout.log and session markers
 	stdoutLogPath := filepath.Join(targetDir, ".renkin", "logs", "stdout.log")

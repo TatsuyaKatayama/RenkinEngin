@@ -34,12 +34,12 @@ func TestWorkspaceTrustEnvironment(t *testing.T) {
 
 func TestLLMPresetTrustCommands(t *testing.T) {
 	// Gemini Preset
-	lConfGemini, err := config.LoadLLMConf("../../presets/llms/gemini.toml")
+	lConfGemini, _, _, _, err := config.LoadLLMPreset("../../presets/llms", "gemini")
 	assert.NoError(t, err)
 	assert.Contains(t, lConfGemini.Install, "git config --global --add safe.directory /workspace")
 
 	// Codex Preset
-	lConfCodex, err := config.LoadLLMConf("../../presets/llms/codex.toml")
+	lConfCodex, _, _, _, err := config.LoadLLMPreset("../../presets/llms", "codex")
 	assert.NoError(t, err)
 	assert.Contains(t, lConfCodex.Install, "git config --global --add safe.directory /workspace")
 	assert.NotContains(t, lConfCodex.Install, "/root/.codex/config.toml")

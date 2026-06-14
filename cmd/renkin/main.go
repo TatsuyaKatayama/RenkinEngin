@@ -151,6 +151,7 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	}
 
 	var lConf *config.LLMConf
+	var llmBotPrompt, llmBotLoop, llmSkills string
 	if llmPath != "" {
 		// Resolve LLM preset
 		// 1. Check if the path exists directly
@@ -160,20 +161,16 @@ func runAssign(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		} else {
-			// 2. Try to resolve as a preset name
+			// 2. Try to resolve as a preset name (directory or .toml file)
 			presetsLLMDir := "presets/llms"
 			if _, err := os.Stat(presetsLLMDir); os.IsNotExist(err) {
 				if exePath, err := os.Executable(); err == nil {
 					presetsLLMDir = filepath.Join(filepath.Dir(exePath), "presets/llms")
 				}
 			}
-			presetPath := filepath.Join(presetsLLMDir, llmPath+".toml")
-			if _, err := os.Stat(presetPath); err == nil {
-				lConf, err = config.LoadLLMConf(presetPath)
-				if err != nil {
-					return err
-				}
-			} else {
+			var err error
+			lConf, llmBotPrompt, llmBotLoop, llmSkills, err = config.LoadLLMPreset(presetsLLMDir, llmPath)
+			if err != nil {
 				return fmt.Errorf("llm config or preset not found: %s", llmPath)
 			}
 		}
@@ -188,6 +185,9 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	var toolBotPrompts []string
+	var toolBotLoops []string
+
 	for _, input := range toolsPath {
 		var list config.ToolList
 		if _, err := os.Stat(input); err == nil {
@@ -198,7 +198,17 @@ func runAssign(cmd *cobra.Command, args []string) error {
 			}
 		} else {
 			// Treat as preset name
-			list = config.ToolList{Tools: []config.Tool{{Preset: input}}}
+			tpData, err := config.LoadToolPreset(presetsDir, input)
+			if err != nil {
+				return err
+			}
+			list = tpData.ToolList
+			if tpData.BotPrompt != "" {
+				toolBotPrompts = append(toolBotPrompts, tpData.BotPrompt)
+			}
+			if tpData.BotLoop != "" {
+				toolBotLoops = append(toolBotLoops, tpData.BotLoop)
+			}
 		}
 		tList.Tools = append(tList.Tools, list.Tools...)
 	}
@@ -288,10 +298,12 @@ func runAssign(cmd *cobra.Command, args []string) error {
 
 	var llmCmd string
 	var loopCmd, restartPolicy, logDir, stdoutLog, stderrLog string
+	var restartDelay int
 	if lConf != nil {
 		llmCmd = lConf.Cmd
 		loopCmd = lConf.LoopCmd
 		restartPolicy = lConf.RestartPolicy
+		restartDelay = lConf.RestartDelay
 		logDir = lConf.LogDir
 		stdoutLog = lConf.StdoutLog
 		stderrLog = lConf.StderrLog
@@ -301,16 +313,52 @@ func runAssign(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		// Generate default bot_prompt.md if not exists
+		// Generate default bot_prompt.md or merge with toolBotPrompts
 		botPromptPath := filepath.Join(renkinConfDir, "bot_prompt.md")
-		if _, err := os.Stat(botPromptPath); os.IsNotExist(err) {
-			defaultPrompt := `## Task
+		basePrompt := llmBotPrompt
+		if basePrompt == "" {
+			basePrompt = `## Task
 Analyze the files in your workspace. Check if there are any new files or changes, write a brief summary report of the workspace status to stdout, and print the current time.
 `
-			if err := os.WriteFile(botPromptPath, []byte(defaultPrompt), 0644); err != nil {
+		}
+		var finalPrompt strings.Builder
+		finalPrompt.WriteString(basePrompt)
+		for _, tp := range toolBotPrompts {
+			finalPrompt.WriteString("\n\n")
+			finalPrompt.WriteString(tp)
+		}
+		if err := os.WriteFile(botPromptPath, []byte(finalPrompt.String()), 0644); err != nil {
+			return err
+		}
+		fmt.Println("Generated .renkin/conf/bot_prompt.md")
+
+		// Generate and write bot-loop.sh ONLY if a template exists in presets
+		selectedLoopTemplate := llmBotLoop
+		if len(toolBotLoops) > 0 {
+			selectedLoopTemplate = toolBotLoops[0]
+		}
+		if selectedLoopTemplate != "" {
+			// Inject actual LLM loop command into {llm_cmd}
+			actualLLMCmd := ""
+			if lConf != nil {
+				actualLLMCmd = strings.ReplaceAll(lConf.LoopCmd, "{session_id}", `"${AGENT_ID}-session"`)
+			}
+			finalLoop := strings.ReplaceAll(selectedLoopTemplate, "{llm_cmd}", actualLLMCmd)
+
+			// Write to .renkin/conf/bot-loop.sh and workspace/bot-loop.sh
+			if err := os.WriteFile(filepath.Join(renkinConfDir, "bot-loop.sh"), []byte(finalLoop), 0755); err != nil {
 				return err
 			}
-			fmt.Println("Generated .renkin/conf/bot_prompt.md")
+			fmt.Println("Generated .renkin/conf/bot-loop.sh")
+
+			workspaceDir := filepath.Join(targetDir, "workspace")
+			if err := os.MkdirAll(workspaceDir, 0755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(workspaceDir, "bot-loop.sh"), []byte(finalLoop), 0755); err != nil {
+				return err
+			}
+			fmt.Println("Generated workspace/bot-loop.sh")
 		}
 
 		var aggregatedSkills strings.Builder
@@ -340,6 +388,10 @@ Analyze the files in your workspace. Check if there are any new files or changes
 			aggregatedSkills.WriteString("## Base Skills\n")
 			aggregatedSkills.Write(content)
 			aggregatedSkills.WriteString("\n")
+		} else if llmSkills != "" {
+			aggregatedSkills.WriteString("## Base Skills\n")
+			aggregatedSkills.WriteString(llmSkills)
+			aggregatedSkills.WriteString("\n")
 		}
 
 		if err := os.WriteFile(filepath.Join(renkinConfDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
@@ -354,6 +406,7 @@ Analyze the files in your workspace. Check if there are any new files or changes
 		EnvKeys:       cfg.CollectEnvKeys(),
 		LoopCmd:       loopCmd,
 		RestartPolicy: restartPolicy,
+		RestartDelay:  restartDelay,
 		LogDir:        logDir,
 		StdoutLog:     stdoutLog,
 		StderrLog:     stderrLog,
@@ -410,17 +463,15 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Determine session ID and check loop flag
 	if loopCmd != "" {
 		isLoopMode = true
-		wd, _ := os.Getwd()
-		agentName := filepath.Base(wd)
-		sessionID := agentName + "-session"
 
 		if overrideCmd != "" {
 			cmdToRun = overrideCmd
 		} else if loopCmd == "default" {
-			if meta.LoopCmd == "" {
-				return fmt.Errorf("no loop_cmd template found in preset/metadata. Please specify a loop command directly (e.g., --loop 'work.sh')")
+			loopScriptPath := filepath.Join(".renkin", "conf", "bot-loop.sh")
+			if _, err := os.Stat(loopScriptPath); os.IsNotExist(err) {
+				return fmt.Errorf("loop script not found at %s. The active presets do not define a loop script. Please specify a custom loop script directly (e.g., --loop 'work.sh') or use presets that support loops", loopScriptPath)
 			}
-			cmdToRun = strings.ReplaceAll(meta.LoopCmd, "{session_id}", sessionID)
+			cmdToRun = "bash /renkin-conf/bot-loop.sh"
 		} else {
 			cmdToRun = loopCmd
 		}
@@ -467,8 +518,13 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 		restartPolicy = "always"
 	}
 
+	restartDelay := meta.RestartDelay
+	if restartDelay <= 0 {
+		restartDelay = 2
+	}
+
 	fmt.Printf("Starting bot loop with command: %s\n", cmdToRun)
-	fmt.Printf("Restart policy: %s\n", restartPolicy)
+	fmt.Printf("Restart policy: %s (delay: %ds)\n", restartPolicy, restartDelay)
 	fmt.Printf("Logging stdout to: %s\n", stdoutPath)
 	fmt.Printf("Logging stderr to: %s\n", stderrPath)
 
@@ -527,8 +583,8 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 			break
 		}
 
-		fmt.Println("Restart policy triggered. Sleeping 2 seconds before restarting...")
-		time.Sleep(2 * time.Second)
+		fmt.Printf("Restart policy triggered. Sleeping %d seconds before restarting...\n", restartDelay)
+		time.Sleep(time.Duration(restartDelay) * time.Second)
 	}
 
 	return nil

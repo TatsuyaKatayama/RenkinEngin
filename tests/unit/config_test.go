@@ -348,6 +348,7 @@ func TestLLMConfParseWithLoopFields(t *testing.T) {
 cmd = "gemini"
 loop_cmd = "gemini --session-id {session_id}"
 restart_policy = "on-failure"
+restart_delay = 5
 log_dir = ".renkin/logs"
 stdout_log = "stdout.log"
 stderr_log = "stderr.log"
@@ -362,6 +363,7 @@ stderr_log = "stderr.log"
 	assert.Equal(t, "gemini", conf.Cmd)
 	assert.Equal(t, "gemini --session-id {session_id}", conf.LoopCmd)
 	assert.Equal(t, "on-failure", conf.RestartPolicy)
+	assert.Equal(t, 5, conf.RestartDelay)
 	assert.Equal(t, ".renkin/logs", conf.LogDir)
 	assert.Equal(t, "stdout.log", conf.StdoutLog)
 	assert.Equal(t, "stderr.log", conf.StderrLog)
@@ -377,6 +379,7 @@ func TestMetadataSaveAndLoadWithLoopFields(t *testing.T) {
 		EnvKeys:       []string{"KEY1"},
 		LoopCmd:       "gemini --session-id {session_id}",
 		RestartPolicy: "always",
+		RestartDelay:  5,
 		LogDir:        ".renkin/logs",
 		StdoutLog:     "stdout.log",
 		StderrLog:     "stderr.log",
@@ -393,6 +396,7 @@ func TestMetadataSaveAndLoadWithLoopFields(t *testing.T) {
 	assert.Equal(t, []string{"KEY1"}, loaded.EnvKeys)
 	assert.Equal(t, "gemini --session-id {session_id}", loaded.LoopCmd)
 	assert.Equal(t, "always", loaded.RestartPolicy)
+	assert.Equal(t, 5, loaded.RestartDelay)
 	assert.Equal(t, ".renkin/logs", loaded.LogDir)
 	assert.Equal(t, "stdout.log", loaded.StdoutLog)
 	assert.Equal(t, "stderr.log", loaded.StderrLog)

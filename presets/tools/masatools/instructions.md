@@ -1,49 +1,3 @@
-[[tool]]
-preset = "python-post"
-
-[[tool]]
-name = "masatools-mcp"
-type = "shell"
-environment = ["NATS_URL", "API_URL", "S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-install = """
-RUN /usr/local/bin/uv pip install --system --break-system-packages \
-    nats-py[nkeys] \
-    boto3 \
-    pydantic \
-    python-ulid \
-    mcp \
-    httpx && \
-    /usr/local/bin/uv pip install --system --break-system-packages "masatools @ git+https://github.com/TatsuyaKatayama/masatools.git@develop"
-"""
-mcp_config_gemini = """
-    "masatools": {
-      "command": "/bin/bash",
-      "args": ["-lc", "exec python -m masatools.adapters.mcp.server"],
-      "env": {
-        "AGENT_ID": "$AGENT_ID",
-        "NATS_URL": "$NATS_URL",
-        "API_URL": "$API_URL",
-        "S3_ENDPOINT": "$S3_ENDPOINT",
-        "S3_BUCKET": "$S3_BUCKET",
-        "AWS_ACCESS_KEY_ID": "$AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY": "$AWS_SECRET_ACCESS_KEY"
-      }
-    }
-"""
-mcp_config_codex = """
-[mcp_servers.masatools]
-command = "/bin/bash"
-args = ["-lc", "exec python -m masatools.adapters.mcp.server"]
-[mcp_servers.masatools.env]
-AGENT_ID = "$AGENT_ID"
-NATS_URL = "$NATS_URL"
-API_URL = "$API_URL"
-S3_ENDPOINT = "$S3_ENDPOINT"
-S3_BUCKET = "$S3_BUCKET"
-AWS_ACCESS_KEY_ID = "$AWS_ACCESS_KEY_ID"
-AWS_SECRET_ACCESS_KEY = "$AWS_SECRET_ACCESS_KEY"
-"""
-instructions = """
 # masatools MCP Server
 Available tools for message board, storage interaction, and organizational awareness:
 
@@ -74,4 +28,3 @@ Available tools for message board, storage interaction, and organizational aware
     - **Delegation:** For complex tasks, use `create_thread_tool` to delegate to appropriate agents based on your organizational awareness.
 
 Note: Requires `NATS_URL`, `API_URL`, `S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` to be set.
-"""

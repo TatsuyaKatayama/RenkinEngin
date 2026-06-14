@@ -1,21 +1,21 @@
-cmd = "gemini"
-loop_cmd = 'gemini --session-id {session_id} -r latest --yolo --prompt "$(cat /renkin-conf/bot_prompt.md)"'
+cmd = "agy"
+loop_cmd = 'agy --conversation {session_id} --dangerously-skip-permissions --prompt "$(cat /renkin-conf/bot_prompt.md)"'
 restart_policy = "always"
+restart_delay = 2
 log_dir = ".renkin/logs"
 stdout_log = "stdout.log"
 stderr_log = "stderr.log"
 install = """
 RUN apt-get update && apt-get install -y curl ca-certificates git python3 && \
-    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g @google/gemini-cli && \
+    curl -fsSL https://antigravity.google/cli/install.sh | bash && \
+    mv /root/.local/bin/agy /usr/local/bin/agy && \
     git config --global --add safe.directory /workspace
 """
 skill_file = "GEMINI.md"
 env_keys = ["GEMINI_API_KEY"]
 default_env = ["GEMINI_TRUST_WORKSPACE=true"]
 runtime_configs = [
-    { source = "settings.json", target = "/root/.gemini/settings.json" }
+    { source = "mcp_config.json", target = "/root/.gemini/config/mcp_config.json" }
 ]
 home_mounts = [
     { host_dir = ".renkin/gemini", container_dir = "/root/.gemini" }

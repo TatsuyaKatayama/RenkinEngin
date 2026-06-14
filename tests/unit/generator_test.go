@@ -94,8 +94,9 @@ func TestRuntimeConfigGenerationForMCPToolWithoutLLM(t *testing.T) {
 }
 
 func TestRuntimeConfigGenerationGemini(t *testing.T) {
-	list, err := config.LoadToolList("../../presets/tools/masatools.toml")
+	tpData, err := config.LoadToolPreset("../../presets/tools", "masatools")
 	assert.NoError(t, err)
+	list := tpData.ToolList
 	err = list.ResolvePresets("../../presets/tools")
 	assert.NoError(t, err)
 

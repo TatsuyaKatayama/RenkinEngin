@@ -60,8 +60,8 @@
 - `--loop work.sh` 指定時、Preset テンプレートを無視して指定スクリプトがコンテナの `/workspace` 起点で直接実行されること。
 - `--cmd bash` を併用した場合、`--loop` の指定に割り込み最優先で `bash` が起動アタッチされること。
 
-#### TC-I-131: restart_policy 自動復旧
-- ループ実行中にコンテナ内のエージェントプロセスが終了した際、`restart_policy = "always"` に従って 2秒 スリープ後に会話セッションが同一セッションIDで自動復元・ループ再起動すること。
+#### TC-I-131: restart_policy & restart_delay 自動復旧
+- ループ実行中にコンテナ内のエージェントプロセスが終了した際、`restart_policy`（`always` / `on-failure`）および `restart_delay` （再起動前の指定秒数待機、未指定時デフォルト 2秒）に従って、自動的に会話セッションが同一セッションIDで自動復元・ループ再起動すること。
 - エラー終了時（終了コード非0）に `restart_policy = "on-failure"` が動作すること。
 
 #### TC-I-132: 構造化ログとセッション区切り
