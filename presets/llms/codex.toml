@@ -1,4 +1,9 @@
 cmd = "codex"
+loop_cmd = 'codex resume {session_id} --dangerously-bypass-approvals-and-sandbox "$(cat /renkin-conf/bot_prompt.md)"'
+restart_policy = "always"
+log_dir = ".renkin/logs"
+stdout_log = "stdout.log"
+stderr_log = "stderr.log"
 install = """
 RUN apt-get update && apt-get install -y curl ca-certificates git python3 && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \

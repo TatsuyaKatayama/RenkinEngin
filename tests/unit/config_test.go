@@ -342,3 +342,58 @@ func TestSkillFileName(t *testing.T) {
 		assert.Equal(t, tt.expected, name)
 	}
 }
+
+func TestLLMConfParseWithLoopFields(t *testing.T) {
+	input := `
+cmd = "gemini"
+loop_cmd = "gemini --session-id {session_id}"
+restart_policy = "on-failure"
+log_dir = ".renkin/logs"
+stdout_log = "stdout.log"
+stderr_log = "stderr.log"
+`
+	tmpDir, _ := os.MkdirTemp("", "renkin-test")
+	defer os.RemoveAll(tmpDir)
+	path := filepath.Join(tmpDir, "llm.conf")
+	os.WriteFile(path, []byte(input), 0644)
+
+	conf, err := config.LoadLLMConf(path)
+	assert.NoError(t, err)
+	assert.Equal(t, "gemini", conf.Cmd)
+	assert.Equal(t, "gemini --session-id {session_id}", conf.LoopCmd)
+	assert.Equal(t, "on-failure", conf.RestartPolicy)
+	assert.Equal(t, ".renkin/logs", conf.LogDir)
+	assert.Equal(t, "stdout.log", conf.StdoutLog)
+	assert.Equal(t, "stderr.log", conf.StderrLog)
+}
+
+func TestMetadataSaveAndLoadWithLoopFields(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-test")
+	defer os.RemoveAll(tmpDir)
+	path := filepath.Join(tmpDir, ".renkin_metadata.toml")
+
+	meta := config.Metadata{
+		LLMCmd:        "gemini",
+		EnvKeys:       []string{"KEY1"},
+		LoopCmd:       "gemini --session-id {session_id}",
+		RestartPolicy: "always",
+		LogDir:        ".renkin/logs",
+		StdoutLog:     "stdout.log",
+		StderrLog:     "stderr.log",
+	}
+
+	err := config.SaveMetadata(path, meta)
+	assert.NoError(t, err)
+
+	var loaded config.Metadata
+	err = config.LoadMetadata(path, &loaded)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "gemini", loaded.LLMCmd)
+	assert.Equal(t, []string{"KEY1"}, loaded.EnvKeys)
+	assert.Equal(t, "gemini --session-id {session_id}", loaded.LoopCmd)
+	assert.Equal(t, "always", loaded.RestartPolicy)
+	assert.Equal(t, ".renkin/logs", loaded.LogDir)
+	assert.Equal(t, "stdout.log", loaded.StdoutLog)
+	assert.Equal(t, "stderr.log", loaded.StderrLog)
+}

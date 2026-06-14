@@ -40,6 +40,11 @@ type LLMConf struct {
 	DefaultEnv     []string        `toml:"default_env"`
 	RuntimeConfigs []RuntimeConfig `toml:"runtime_configs"`
 	HomeMounts     []HomeMount     `toml:"home_mounts"`
+	LoopCmd        string          `toml:"loop_cmd"`
+	RestartPolicy  string          `toml:"restart_policy"`
+	LogDir         string          `toml:"log_dir"`
+	StdoutLog      string          `toml:"stdout_log"`
+	StderrLog      string          `toml:"stderr_log"`
 }
 
 type Tool struct {
@@ -304,8 +309,13 @@ func GetActiveProxyKeys() []string {
 }
 
 type Metadata struct {
-	LLMCmd  string   `toml:"llm_cmd"`
-	EnvKeys []string `toml:"env_keys"`
+	LLMCmd        string   `toml:"llm_cmd"`
+	EnvKeys       []string `toml:"env_keys"`
+	LoopCmd       string   `toml:"loop_cmd"`
+	RestartPolicy string   `toml:"restart_policy"`
+	LogDir        string   `toml:"log_dir"`
+	StdoutLog     string   `toml:"stdout_log"`
+	StderrLog     string   `toml:"stderr_log"`
 }
 
 func SaveMetadata(path string, meta Metadata) error {

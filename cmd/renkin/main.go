@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/docker"
@@ -20,6 +22,7 @@ var (
 	skillsPath  string
 	overrideCmd string
 	noConfig    bool
+	loopCmd     string
 )
 
 func main() {
@@ -40,10 +43,19 @@ func main() {
 	var startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Start the docker-compose environment and attach to LLM agent",
+		Long: `Start the docker-compose environment and run the LLM agent.
+
+If --loop is specified, it runs the LLM agent or custom script in an automated loop mode.
+Any relative paths (e.g., ./work.sh) are resolved relative to the workspace root inside the container.
+To stop/kill the loop, press Ctrl+C in your terminal or run 'renkin stop' from another terminal.
+
+Note: If --cmd is provided, it takes absolute priority and overrides any default commands or loop script execution.`,
 		RunE:  runStart,
 	}
 	startCmd.Flags().StringVar(&overrideCmd, "cmd", "", "Override default LLM command (e.g., --cmd bash)")
 	startCmd.Flags().BoolVar(&noConfig, "no-config", false, "Skip automatic configuration generation")
+	startCmd.Flags().StringVar(&loopCmd, "loop", "", "Run in loop mode using default loop command or custom script")
+	startCmd.Flags().Lookup("loop").NoOptDefVal = "default"
 
 	var stopCmd = &cobra.Command{
 		Use:   "stop",
@@ -275,11 +287,30 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	}
 
 	var llmCmd string
+	var loopCmd, restartPolicy, logDir, stdoutLog, stderrLog string
 	if lConf != nil {
 		llmCmd = lConf.Cmd
+		loopCmd = lConf.LoopCmd
+		restartPolicy = lConf.RestartPolicy
+		logDir = lConf.LogDir
+		stdoutLog = lConf.StdoutLog
+		stderrLog = lConf.StderrLog
+
 		skillName, err := lConf.GetSkillFileName()
 		if err != nil {
 			return err
+		}
+
+		// Generate default bot_prompt.md if not exists
+		botPromptPath := filepath.Join(renkinConfDir, "bot_prompt.md")
+		if _, err := os.Stat(botPromptPath); os.IsNotExist(err) {
+			defaultPrompt := `## Task
+Analyze the files in your workspace. Check if there are any new files or changes, write a brief summary report of the workspace status to stdout, and print the current time.
+`
+			if err := os.WriteFile(botPromptPath, []byte(defaultPrompt), 0644); err != nil {
+				return err
+			}
+			fmt.Println("Generated .renkin/conf/bot_prompt.md")
 		}
 
 		var aggregatedSkills strings.Builder
@@ -319,8 +350,13 @@ func runAssign(cmd *cobra.Command, args []string) error {
 
 	// Save metadata
 	meta := config.Metadata{
-		LLMCmd:  llmCmd,
-		EnvKeys: cfg.CollectEnvKeys(),
+		LLMCmd:        llmCmd,
+		EnvKeys:       cfg.CollectEnvKeys(),
+		LoopCmd:       loopCmd,
+		RestartPolicy: restartPolicy,
+		LogDir:        logDir,
+		StdoutLog:     stdoutLog,
+		StderrLog:     stderrLog,
 	}
 	if err := config.SaveMetadata(filepath.Join(targetDir, ".renkin_metadata.toml"), meta); err != nil {
 		return err
@@ -368,14 +404,133 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cmdToRun := determineCommand(meta.LLMCmd, overrideCmd)
+	var cmdToRun string
+	isLoopMode := false
+
+	// Determine session ID and check loop flag
+	if loopCmd != "" {
+		isLoopMode = true
+		wd, _ := os.Getwd()
+		agentName := filepath.Base(wd)
+		sessionID := agentName + "-session"
+
+		if overrideCmd != "" {
+			cmdToRun = overrideCmd
+		} else if loopCmd == "default" {
+			if meta.LoopCmd == "" {
+				return fmt.Errorf("no loop_cmd template found in preset/metadata. Please specify a loop command directly (e.g., --loop 'work.sh')")
+			}
+			cmdToRun = strings.ReplaceAll(meta.LoopCmd, "{session_id}", sessionID)
+		} else {
+			cmdToRun = loopCmd
+		}
+	} else {
+		cmdToRun = determineCommand(meta.LLMCmd, overrideCmd)
+	}
 
 	if cmdToRun != "" {
-		fmt.Printf("Attaching to container with command: %s\n", cmdToRun)
-		return docker.ExecAttach("llm-agent", cmdToRun)
+		if isLoopMode {
+			return runDaemon(cmdToRun, meta)
+		} else {
+			fmt.Printf("Attaching to container with command: %s\n", cmdToRun)
+			return docker.ExecAttach("llm-agent", cmdToRun)
+		}
 	}
 
 	fmt.Println("Containers started. No LLM agent to attach.")
+	return nil
+}
+
+func runDaemon(cmdToRun string, meta config.Metadata) error {
+	logDir := meta.LogDir
+	if logDir == "" {
+		logDir = ".renkin/logs"
+	}
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %v", err)
+	}
+
+	stdoutFile := "stdout.log"
+	if meta.StdoutLog != "" {
+		stdoutFile = meta.StdoutLog
+	}
+	stderrFile := "stderr.log"
+	if meta.StderrLog != "" {
+		stderrFile = meta.StderrLog
+	}
+
+	stdoutPath := filepath.Join(logDir, stdoutFile)
+	stderrPath := filepath.Join(logDir, stderrFile)
+
+	restartPolicy := meta.RestartPolicy
+	if restartPolicy == "" {
+		restartPolicy = "always"
+	}
+
+	fmt.Printf("Starting bot loop with command: %s\n", cmdToRun)
+	fmt.Printf("Restart policy: %s\n", restartPolicy)
+	fmt.Printf("Logging stdout to: %s\n", stdoutPath)
+	fmt.Printf("Logging stderr to: %s\n", stderrPath)
+
+	for {
+		// Open log files in append mode
+		outF, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return err
+		}
+		errF, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			outF.Close()
+			return err
+		}
+
+		nowStr := time.Now().Format("2006-01-02 15:04:05")
+		startMarker := fmt.Sprintf("\n=== SESSION START: %s (Command: %s) ===\n", nowStr, cmdToRun)
+		outF.WriteString(startMarker)
+		errF.WriteString(startMarker)
+
+		// Run the command using 'docker compose exec -T'
+		runCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", cmdToRun)
+		runCmd.Stdout = outF
+		runCmd.Stderr = errF
+
+		err = runCmd.Run()
+
+		exitCode := 0
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				exitCode = -1 // System error (e.g. docker compose not running)
+			}
+		}
+
+		nowStrEnd := time.Now().Format("2006-01-02 15:04:05")
+		endMarker := fmt.Sprintf("\n=== SESSION END: %s (Exit Code: %d) ===\n", nowStrEnd, exitCode)
+		outF.WriteString(endMarker)
+		errF.WriteString(endMarker)
+
+		outF.Close()
+		errF.Close()
+
+		fmt.Printf("Loop iteration ended at %s with exit code %d\n", nowStrEnd, exitCode)
+
+		// Check restart policy
+		shouldRestart := false
+		if restartPolicy == "always" {
+			shouldRestart = true
+		} else if restartPolicy == "on-failure" && exitCode != 0 {
+			shouldRestart = true
+		}
+
+		if !shouldRestart {
+			break
+		}
+
+		fmt.Println("Restart policy triggered. Sleeping 2 seconds before restarting...")
+		time.Sleep(2 * time.Second)
+	}
+
 	return nil
 }
 

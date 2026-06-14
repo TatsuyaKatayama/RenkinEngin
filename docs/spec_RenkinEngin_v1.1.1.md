@@ -84,7 +84,7 @@ renkin assign <target_dir> \
 ### 2.3 renkin start
 
 ```bash
-renkin start [--cmd <command>] [--no-config]
+renkin start [--cmd <command>] [--no-config] [--loop [<custom_command>]]
 ```
 
 1. **環境変数チェック**: 必要な環境変数がホストに設定されているか確認。不足がある場合、警告を表示し続行を確認する
@@ -92,11 +92,19 @@ renkin start [--cmd <command>] [--no-config]
 3. **LLM設定自動生成**: `--no-config` が指定されていない場合、コンテナ内で `renkin-generate-llm-config` を実行し、エージェントの設定ファイル（`config.toml` や `settings.json`）を生成・更新する。
    - `gemini` エージェントの場合: `settings.json` のみを生成し、`config.toml` は出力しない。
    - `codex` エージェントの場合: `config.toml` のみを生成し、`settings.json` は出力しない。
-4. LLMエージェントコンテナに`docker exec -it`でアタッチ
+4. **アタッチ・ループ実行方式の決定**:
+   - **通常アタッチ**: `--loop` 未指定の場合、コンテナに `docker compose exec` を通じて対話形式で接続し、アタッチする。
+   - **無限ループ（連勤）モード**: `--loop` が指定された場合、ヘッドレス（`-T`）でフォアグラウンドループ処理を実行する。
+     - `--loop` のみ（または `--loop default`）: 各 Preset で定義されたデフォルトの `loop_cmd` （セッション継続オプション、およびオートプロンプトが埋め込まれたコマンド）を実行。
+     - `--loop <custom_command>`: ユーザーが指定した任意のスクリプト（例: `work.sh`）やコマンドをコンテナ内の作業ディレクトリ `/workspace` 起点で無限ループ実行。
+     - `restart_policy`（プリセットデフォルトは `"always"`) に基づき、終了コードに関わらずセッションを維持して永続ループ復旧する。
+     - 実行ログはエージェントディレクトリ内の `stdout.log` / `stderr.log` へ構造化追記され、タイムスタンプ付きセパレータが起動ごとに自動挿入される。
+     - `Ctrl+C` により安全に Go 監視プロセスおよびコンテナ内部の実行プロセス群が瞬時に Kill される。
 
 #### オプション
-- `--cmd <command>`: デフォルトのLLM起動コマンドを上書きする（例: `--cmd bash`）。
+- `--cmd <command>`: デフォルトのLLM起動コマンドを上書きする。**最優先オプションであり、`--loop` が同時に指定されている場合でも、このコマンドにアタッチします。**
 - `--no-config`: 起動時の設定ファイル自動生成をスキップする。
+- `--loop [<custom_command>]`: 連勤無限ループモードで起動。引数省略時はプリセットのデフォルト `loop_cmd` を使用。任意のシェルスクリプトやコマンドを指定して連続実行（Bot稼働等）が可能。
 
 ---
 
