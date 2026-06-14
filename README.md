@@ -94,6 +94,7 @@ renkin kaiko
 ### 解析ツール
 - `forgejo-mcp`: Codex CLI / Gemini CLI 向け Forgejo MCP server
 - `git`: Git CLI（`GIT_USER_NAME`, `GIT_USER_EMAIL` をコンテナへ継承）
+- `masabbs-mcp`: Codex CLI / Gemini CLI 向け masabbs 組織・議論レビュー MCP server
 - `mcp-server-git`: Codex CLI / Gemini CLI 向け Git MCP server
 - `openfoam2512`: 流体解析（Ubuntu 24.04 対応）
 - `openmodelica410`: 物理モデリング（MSL v4.1.0 搭載）

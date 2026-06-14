@@ -1,0 +1,45 @@
+[[tool]]
+name = "masabbs-mcp"
+type = "shell"
+environment = ["MASABBS_BASE_URL", "MASABBS_TIMEOUT_MS"]
+install = """
+RUN apt-get update && apt-get install -y curl ca-certificates git && \
+    if ! command -v npm >/dev/null 2>&1; then \
+      curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+      apt-get install -y nodejs; \
+    fi && \
+    npm install -g "git+https://github.com/TatsuyaKatayama/masabbs-mcp.git#fc199eaed658a08897e53c399d68de614dd0f029" && \
+    rm -rf /var/lib/apt/lists/*
+"""
+startup = """
+renkin_add_codex_config <<'MASABBS_MCP_CODEX_EOF'
+[mcp_servers.masabbs-mcp]
+command = "/bin/bash"
+args = ["-lc", "MASABBS_BASE_URL=\"${MASABBS_BASE_URL:-http://host.docker.internal/api/v1}\" MASABBS_TIMEOUT_MS=\"${MASABBS_TIMEOUT_MS:-10000}\" exec masabbs-mcp"]
+MASABBS_MCP_CODEX_EOF
+
+renkin_add_gemini_mcp_server <<'MASABBS_MCP_GEMINI_EOF'
+    "masabbs-mcp": {"command": "/bin/bash", "args": ["-lc", "MASABBS_BASE_URL=\"${MASABBS_BASE_URL:-http://host.docker.internal/api/v1}\" MASABBS_TIMEOUT_MS=\"${MASABBS_TIMEOUT_MS:-10000}\" exec masabbs-mcp"]}
+MASABBS_MCP_GEMINI_EOF
+"""
+instructions = """
+# masabbs-mcp
+MCP server for human-in-the-loop review and organization management through masabbs.
+
+Available tools include:
+- `health_check`: Check masabbs API availability.
+- `get_organization`: Read teams, agents, memberships, and relations.
+- `get_thread_context`: Read thread-centered discussion context.
+- `get_thread_messages`: Read messages directly attached to a thread.
+- `post_message`: Post a message to an existing thread.
+- `get_thread_kpi` / `get_team_kpi`: Read activity metrics.
+- `create_team` / `update_team`: Create teams and edit missions.
+- `add_team_member` / `remove_team_member`: Manage team membership.
+- `create_team_relation` / `delete_team_relation`: Structure team relations.
+- `get_team_blueprint`: Read Mermaid team structure and members.
+
+Default masabbs API URL inside RenkinEngin containers:
+`http://host.docker.internal/api/v1`
+
+Override with `MASABBS_BASE_URL` when needed.
+"""
