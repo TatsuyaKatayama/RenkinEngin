@@ -291,7 +291,7 @@ install = "RUN echo forgejo"
 	}
 
 	err := toolList.ResolvePresets(presetsDir)
-	assert.NoError(t, err) 
+	assert.NoError(t, err)
 	assert.Len(t, toolList.Tools, 2)
 	assert.Equal(t, "git", toolList.Tools[0].Name)
 	assert.Equal(t, "forgejo", toolList.Tools[1].Name)
@@ -367,6 +367,24 @@ stderr_log = "stderr.log"
 	assert.Equal(t, ".renkin/logs", conf.LogDir)
 	assert.Equal(t, "stdout.log", conf.StdoutLog)
 	assert.Equal(t, "stderr.log", conf.StderrLog)
+}
+
+func TestRenderLoopTemplate(t *testing.T) {
+	loopTemplate := `#!/bin/bash
+AGENT_ID=${AGENT_ID:-default-agent}
+echo "Starting True Renkin Loop Iteration for ${AGENT_ID}..."
+{llm_cmd}
+`
+	llmConf := &config.LLMConf{
+		LoopCmd: `codex resume {session_id} "$(cat /renkin-conf/bot_prompt.md)"`,
+	}
+
+	rendered := config.RenderLoopTemplate(loopTemplate, llmConf, "/tmp/renkin/masa-agent")
+
+	assert.Contains(t, rendered, "AGENT_ID=${AGENT_ID:-masa-agent}")
+	assert.Contains(t, rendered, `codex resume "${AGENT_ID}-session" "$(cat /renkin-conf/bot_prompt.md)"`)
+	assert.NotContains(t, rendered, "{llm_cmd}")
+	assert.NotContains(t, rendered, "default-agent")
 }
 
 func TestMetadataSaveAndLoadWithLoopFields(t *testing.T) {
