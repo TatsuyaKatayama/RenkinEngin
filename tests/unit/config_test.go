@@ -163,8 +163,8 @@ func TestMCPServerGitToolPreset(t *testing.T) {
 	assert.Contains(t, tool.Install, "ln -s /root/.local/bin/uv /usr/local/bin/uv")
 	assert.NotContains(t, tool.Install, "/root/.codex/config.toml")
 	assert.NotContains(t, tool.Install, "/root/.gemini/settings.json")
-	assert.Contains(t, tool.Startup, `args = ["--repository", "/workspace"]`)
-}
+	assert.Contains(t, tool.MCPConfigCodex, `args = ["--repository", "/workspace"]`)
+	}
 
 func TestMCPServerGitToolPresetResolution(t *testing.T) {
 	list := config.ToolList{Tools: []config.Tool{{Preset: "mcp-server-git"}}}
@@ -189,7 +189,7 @@ func TestForgejoMCPToolPreset(t *testing.T) {
 	assert.Contains(t, tool.Install, "go build -o /usr/local/bin/forgejo-mcp .")
 	assert.NotContains(t, tool.Install, "/root/.codex/config.toml")
 	assert.NotContains(t, tool.Install, "/root/.gemini/settings.json")
-	assert.Contains(t, tool.Startup, "${FORGEJO_URL:-https://codeberg.org}")
+	assert.Contains(t, tool.MCPConfigCodex, "${FORGEJO_URL:-https://codeberg.org}")
 	assert.ElementsMatch(t, []string{"FORGEJO_URL", "FORGEJO_ACCESS_TOKEN", "FORGEJO_USER_AGENT"}, tool.Environment)
 }
 

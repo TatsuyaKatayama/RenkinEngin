@@ -11,16 +11,13 @@ RUN apt-get update && apt-get install -y curl ca-certificates git && \
     npm install -g "git+https://github.com/TatsuyaKatayama/masabbs-mcp.git#fc199eaed658a08897e53c399d68de614dd0f029" && \
     rm -rf /var/lib/apt/lists/*
 """
-startup = """
-renkin_add_codex_config <<'MASABBS_MCP_CODEX_EOF'
+mcp_config_codex = """
 [mcp_servers.masabbs-mcp]
 command = "/bin/bash"
-args = ["-lc", "MASABBS_BASE_URL=\"${MASABBS_BASE_URL:-http://host.docker.internal/api/v1}\" MASABBS_TIMEOUT_MS=\"${MASABBS_TIMEOUT_MS:-10000}\" exec masabbs-mcp"]
-MASABBS_MCP_CODEX_EOF
-
-renkin_add_gemini_mcp_server <<'MASABBS_MCP_GEMINI_EOF'
-    "masabbs-mcp": {"command": "/bin/bash", "args": ["-lc", "MASABBS_BASE_URL=\"${MASABBS_BASE_URL:-http://host.docker.internal/api/v1}\" MASABBS_TIMEOUT_MS=\"${MASABBS_TIMEOUT_MS:-10000}\" exec masabbs-mcp"]}
-MASABBS_MCP_GEMINI_EOF
+args = ["-lc", "MASABBS_BASE_URL=\\\"${MASABBS_BASE_URL:-http://host.docker.internal/api/v1}\\\" MASABBS_TIMEOUT_MS=\\\"${MASABBS_TIMEOUT_MS:-10000}\\\" exec masabbs-mcp"]
+"""
+mcp_config_gemini = """
+    "masabbs-mcp": {"command": "/bin/bash", "args": ["-lc", "MASABBS_BASE_URL=\\\"${MASABBS_BASE_URL:-http://host.docker.internal/api/v1}\\\" MASABBS_TIMEOUT_MS=\\\"${MASABBS_TIMEOUT_MS:-10000}\\\" exec masabbs-mcp"]}
 """
 instructions = """
 # masabbs-mcp

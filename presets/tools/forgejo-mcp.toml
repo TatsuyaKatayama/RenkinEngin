@@ -12,17 +12,14 @@ RUN apt-get update && apt-get install -y golang-go ca-certificates && \
     go build -o /usr/local/bin/forgejo-mcp . && \
     rm -rf /tmp/forgejo-mcp /var/lib/apt/lists/*
 """
-startup = """
-renkin_add_codex_config <<FORGEJO_CODEX_EOF
+mcp_config_codex = """
 [mcp_servers.forgejo]
 command = "/usr/local/bin/forgejo-mcp"
 args = ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"]
 [mcp_servers.forgejo.env]
 FORGEJO_ACCESS_TOKEN = "${FORGEJO_ACCESS_TOKEN:-}"
 FORGEJO_USER_AGENT = "${FORGEJO_USER_AGENT:-}"
-FORGEJO_CODEX_EOF
-
-renkin_add_gemini_mcp_server <<FORGEJO_GEMINI_EOF
+"""
+mcp_config_gemini = """
     "forgejo": {"command": "/usr/local/bin/forgejo-mcp", "args": ["--transport", "stdio", "--url", "${FORGEJO_URL:-https://codeberg.org}"], "env": {"FORGEJO_ACCESS_TOKEN": "${FORGEJO_ACCESS_TOKEN:-}", "FORGEJO_USER_AGENT": "${FORGEJO_USER_AGENT:-}"}}
-FORGEJO_GEMINI_EOF
 """

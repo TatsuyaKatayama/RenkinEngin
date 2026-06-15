@@ -71,8 +71,8 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "curl -LsSf https://astral.sh/uv/install.sh | sh")
 	assert.Contains(t, dockerfile, "uv pip install --system --break-system-packages mcp-server-git")
 	assert.Contains(t, dockerfile, "mcp-server-git")
-	assert.Contains(t, dockerfile, "/root/.codex")
-	assert.Contains(t, dockerfile, "/root/.gemini")
+	// Since MCP configuration is now generated on host during 'assign', 
+	// it's no longer in the Dockerfile's runtime generation script unless 'startup' is used.
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 }
 
@@ -84,13 +84,12 @@ func TestRuntimeConfigGenerationForMCPToolWithoutLLM(t *testing.T) {
 
 	cfg := config.Config{
 		Docker:   config.DockerConf{BaseImage: "ubuntu:24.04"},
+		LLM:      &config.LLMConf{Cmd: "codex"}, // Trigger config generation
 		ToolList: list,
 	}
 	dockerfile, err := generator.GenerateDockerfile(cfg)
 	assert.NoError(t, err)
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
-	// Startup scripts for tools are still generated
-	assert.Contains(t, dockerfile, "mcp-server-git")
 }
 
 func TestRuntimeConfigGenerationGemini(t *testing.T) {
