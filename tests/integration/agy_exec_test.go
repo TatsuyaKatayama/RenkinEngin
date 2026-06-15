@@ -44,7 +44,7 @@ mcp_config_gemini = '"agy-mcp": {"command": "echo"}'
 	targetDir := filepath.Join(tmpDir, "target")
 	assignCmd := exec.Command(binPath, "assign", targetDir,
 		"--docker", filepath.Join(fixtureDir, "docker.conf"),
-		"--llm", "presets/llms/agy.toml",
+		"--llm", "agy",
 		"--tools", filepath.Join(fixtureDir, "tool_list.toml"),
 	)
 	assignCmd.Dir = "../../"

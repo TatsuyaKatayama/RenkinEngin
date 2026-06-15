@@ -31,7 +31,7 @@ host = "./workspace"
 container = "/workspace"
 `
 	// Read the real Codex preset
-	presetPath := "../../presets/llms/codex.toml"
+	presetPath := "../../presets/llms/codex/llm.toml"
 	presetContent, err := os.ReadFile(presetPath)
 	if err != nil {
 		t.Fatalf("failed to read preset: %v", err)

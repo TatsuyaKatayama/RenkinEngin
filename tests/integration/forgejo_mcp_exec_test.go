@@ -46,7 +46,7 @@ preset = "forgejo-mcp"
 	targetDir := filepath.Join(tmpDir, "target")
 	assignCmd := exec.Command(binPath, "assign", targetDir,
 		"--docker", filepath.Join(fixtureDir, "docker.conf"),
-		"--llm", "presets/llms/codex.toml",
+		"--llm", "codex",
 		"--tools", filepath.Join(fixtureDir, "tool_list.toml"),
 	)
 	assignCmd.Dir = "../../"
