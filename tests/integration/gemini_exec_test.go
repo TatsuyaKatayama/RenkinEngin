@@ -31,7 +31,7 @@ host = "./workspace"
 container = "/workspace"
 `
 	// Read the real Gemini preset
-	presetPath := "../../presets/llms/gemini.toml"
+	presetPath := "../../presets/llms/gemini/llm.toml"
 	presetContent, err := os.ReadFile(presetPath)
 	if err != nil {
 		t.Fatalf("failed to read preset: %v", err)
