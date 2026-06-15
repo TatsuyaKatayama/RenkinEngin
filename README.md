@@ -94,7 +94,7 @@ renkin kaiko
 ### 解析ツール
 - `forgejo-mcp`: Codex CLI / Gemini CLI 向け Forgejo MCP server
 - `git`: Git CLI（`GIT_USER_NAME`, `GIT_USER_EMAIL` をコンテナへ継承）
-- `masabbs-mcp`: Codex CLI / Gemini CLI 向け masabbs 組織・議論レビュー MCP server
+- `masabbs-mcp`: Codex CLI / Gemini CLI 向け masabbs 組織・議論レビュー MCP server。preset は GitHub から取得後に `npm ci`、`npm run build`、`npm install -g .` を実行し、生成された MCP 設定は `masabbs-mcp` コマンドを直接起動します。
 - `mcp-server-git`: Codex CLI / Gemini CLI 向け Git MCP server
 - `openfoam2512`: 流体解析（Ubuntu 24.04 対応）
 - `openmodelica410`: 物理モデリング（MSL v4.1.0 搭載）
@@ -105,6 +105,7 @@ renkin kaiko
 - **Proxy環境**: 企業のファイアウォール下でも、ホストの proxy 設定を自動継承して環境構築が可能です。
     - **注意**: ホスト側で起動しているサーバー（Forgejo や NATS 等）にエージェントがアクセスする場合、ホストの IP アドレスを `no_proxy` (または `NO_PROXY`) に含める必要があります。そうしないと、ローカル通信が外部プロキシを経由しようとして失敗することがあります。
     - **推奨される no_proxy 設定例**: `localhost,127.0.0.1,172.17.0.1,host.docker.internal,<ホストのIP>`
+- **masabbs-mcp の接続先**: RenkinEngin コンテナ内では `MASABBS_BASE_URL=http://host.docker.internal/api/v1` を既定値にします。ホスト側で Codex/Gemini を直接動かす場合は、`http://localhost/api/v1` を使い、`masabbs-mcp` コマンドを事前に build/install してください。
 
 ---
 
