@@ -50,7 +50,7 @@ Any relative paths (e.g., ./work.sh) are resolved relative to the workspace root
 To stop/kill the loop, press Ctrl+C in your terminal or run 'renkin stop' from another terminal.
 
 Note: If --cmd is provided, it takes absolute priority and overrides any default commands or loop script execution.`,
-		RunE:  runStart,
+		RunE: runStart,
 	}
 	startCmd.Flags().StringVar(&overrideCmd, "cmd", "", "Override default LLM command (e.g., --cmd bash)")
 	startCmd.Flags().BoolVar(&noConfig, "no-config", false, "Skip automatic configuration generation")
@@ -338,12 +338,7 @@ Analyze the files in your workspace. Check if there are any new files or changes
 			selectedLoopTemplate = toolBotLoops[0]
 		}
 		if selectedLoopTemplate != "" {
-			// Inject actual LLM loop command into {llm_cmd}
-			actualLLMCmd := ""
-			if lConf != nil {
-				actualLLMCmd = strings.ReplaceAll(lConf.LoopCmd, "{session_id}", `"${AGENT_ID}-session"`)
-			}
-			finalLoop := strings.ReplaceAll(selectedLoopTemplate, "{llm_cmd}", actualLLMCmd)
+			finalLoop := config.RenderLoopTemplate(selectedLoopTemplate, lConf, targetDir)
 
 			// Write to .renkin/conf/bot-loop.sh and workspace/bot-loop.sh
 			if err := os.WriteFile(filepath.Join(renkinConfDir, "bot-loop.sh"), []byte(finalLoop), 0755); err != nil {

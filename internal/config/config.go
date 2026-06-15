@@ -168,12 +168,35 @@ func hasToolOverrides(t Tool) bool {
 }
 
 type ToolPresetData struct {
-	ToolList         ToolList
-	BotPrompt        string
-	BotLoop          string
-	Instructions     string
-	MCPConfigGemini  string
-	MCPConfigCodex   string
+	ToolList        ToolList
+	BotPrompt       string
+	BotLoop         string
+	Instructions    string
+	MCPConfigGemini string
+	MCPConfigCodex  string
+}
+
+const defaultAgentID = "default-agent"
+
+func RenderLoopTemplate(loopTemplate string, llmConf *LLMConf, targetDir string) string {
+	loopTemplate = strings.ReplaceAll(loopTemplate, defaultAgentID, ResolveDefaultAgentID(targetDir))
+	return strings.ReplaceAll(loopTemplate, "{llm_cmd}", renderLoopCommand(llmConf))
+}
+
+func ResolveDefaultAgentID(targetDir string) string {
+	targetBase := filepath.Clean(targetDir)
+	if targetBase == "." || targetBase == "/" {
+		wd, _ := os.Getwd()
+		return filepath.Base(wd)
+	}
+	return filepath.Base(targetBase)
+}
+
+func renderLoopCommand(llmConf *LLMConf) string {
+	if llmConf == nil {
+		return ""
+	}
+	return strings.ReplaceAll(llmConf.LoopCmd, "{session_id}", `"${AGENT_ID}-session"`)
 }
 
 func LoadLLMPreset(presetsDir string, presetName string) (*LLMConf, string, string, string, error) {
@@ -216,7 +239,7 @@ func LoadToolPreset(presetsDir string, presetName string) (ToolPresetData, error
 	if err == nil && fi.IsDir() {
 		// Loaded as directory preset
 		tomlPath := filepath.Join(dirPath, "tool.toml")
-		
+
 		var presetTools ToolList
 		if _, err := toml.DecodeFile(tomlPath, &presetTools); err != nil {
 			return ToolPresetData{}, fmt.Errorf("failed to parse preset tool.toml %s: %v", presetName, err)
@@ -419,7 +442,7 @@ type Metadata struct {
 	EnvKeys       []string `toml:"env_keys"`
 	LoopCmd       string   `toml:"loop_cmd"`
 	RestartPolicy string   `toml:"restart_policy"`
-	RestartDelay   int      `toml:"restart_delay"`
+	RestartDelay  int      `toml:"restart_delay"`
 	LogDir        string   `toml:"log_dir"`
 	StdoutLog     string   `toml:"stdout_log"`
 	StderrLog     string   `toml:"stderr_log"`
