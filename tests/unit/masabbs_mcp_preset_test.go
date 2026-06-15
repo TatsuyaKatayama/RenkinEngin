@@ -26,8 +26,12 @@ func TestMasabbsMCPPresetResolution(t *testing.T) {
 	assert.Equal(t, "shell", tool.Type)
 	assert.Contains(t, tool.Environment, "MASABBS_BASE_URL")
 	assert.Contains(t, tool.Environment, "MASABBS_TIMEOUT_MS")
-	assert.Contains(t, tool.Install, "github.com/TatsuyaKatayama/masabbs-mcp.git#fc199eaed658a08897e53c399d68de614dd0f029")
+	assert.Contains(t, tool.Install, "github.com/TatsuyaKatayama/masabbs-mcp.git")
+	assert.Contains(t, tool.Install, "git checkout fc199eaed658a08897e53c399d68de614dd0f029")
+	assert.Contains(t, tool.Install, "npm run build")
 	assert.Contains(t, tool.MCPConfigCodex, "[mcp_servers.masabbs-mcp]")
+	assert.Contains(t, tool.MCPConfigCodex, `command = "masabbs-mcp"`)
+	assert.Contains(t, tool.MCPConfigCodex, "[mcp_servers.masabbs-mcp.env]")
 	assert.Contains(t, tool.MCPConfigGemini, `"masabbs-mcp"`)
 	assert.Contains(t, tool.MCPConfigCodex, "http://host.docker.internal/api/v1")
 
@@ -54,7 +58,9 @@ func TestMasabbsMCPPresetDockerfileAndRuntimeConfig(t *testing.T) {
 
 	dockerfile, err := generator.GenerateDockerfile(cfg)
 	assert.NoError(t, err)
-	assert.Contains(t, dockerfile, "npm install -g")
-	assert.Contains(t, dockerfile, "masabbs-mcp.git#fc199eaed658a08897e53c399d68de614dd0f029")
+	assert.Contains(t, dockerfile, "npm run build")
+	assert.Contains(t, dockerfile, "npm install -g .")
+	assert.Contains(t, dockerfile, "github.com/TatsuyaKatayama/masabbs-mcp.git")
+	assert.Contains(t, dockerfile, "git checkout fc199eaed658a08897e53c399d68de614dd0f029")
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 }
