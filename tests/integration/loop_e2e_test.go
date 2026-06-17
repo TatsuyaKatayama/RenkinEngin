@@ -4,9 +4,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,12 +29,11 @@ func TestLoopE2E(t *testing.T) {
 		t.Fatalf("failed to build renkin: %v", err)
 	}
 
-	// Create a dynamic directory preset for fake-llm to test Directory-based Presets & Synthesis
-	fakePresetDir := "../../presets/llms/fake-llm"
+	// Create a dynamic directory preset for fake-llm to test directory-based presets without dirtying the repository.
+	fakePresetDir := filepath.Join(tmpDir, "presets", "llms", "fake-llm")
 	if err := os.MkdirAll(fakePresetDir, 0755); err != nil {
 		t.Fatalf("failed to create fake preset dir: %v", err)
 	}
-	defer os.RemoveAll(fakePresetDir)
 
 	llmTOML := `cmd = "fake-llm"
 loop_cmd = 'fake-llm --session-id {session_id} -r latest --prompt "$(cat /renkin-conf/bot_prompt.md)"'
@@ -80,7 +79,7 @@ container = "/workspace"
 		"--llm", "fake-llm",
 		"--tools", filepath.Join(fixtureDir, "tool_list.toml"),
 	)
-	assignCmd.Dir = "../../"
+	assignCmd.Dir = tmpDir
 	if out, err := assignCmd.CombinedOutput(); err != nil {
 		t.Fatalf("renkin assign failed: %v\n%s", err, string(out))
 	}
@@ -131,7 +130,7 @@ container = "/workspace"
 	// We launch it, wait 3 seconds, and then kill it to verify that it loops.
 	loopFailCmd := exec.Command(binPath, "start", "--loop=fake-llm fail")
 	loopFailCmd.Dir = targetDir
-	
+
 	if err := loopFailCmd.Start(); err != nil {
 		t.Fatalf("failed to start loopFailCmd: %v", err)
 	}
