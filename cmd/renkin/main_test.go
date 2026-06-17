@@ -46,3 +46,20 @@ func TestDetermineCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestMissingEnvKeysAcceptsGeneratedEnvFileValues(t *testing.T) {
+	missing := missingEnvKeys(
+		[]string{"AGENT_ID", "OPENAI_API_KEY", "NATS_URL"},
+		func(key string) string {
+			if key == "OPENAI_API_KEY" {
+				return "from-host"
+			}
+			return ""
+		},
+		map[string]string{
+			"AGENT_ID": "agent-from-env-file",
+		},
+	)
+
+	assert.Equal(t, []string{"NATS_URL"}, missing)
+}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -437,12 +438,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	var meta config.Metadata
 	if _, err := os.Stat(metadataPath); err == nil {
 		if err := config.LoadMetadata(metadataPath, &meta); err == nil {
-			var missing []string
-			for _, key := range meta.EnvKeys {
-				if os.Getenv(key) == "" {
-					missing = append(missing, key)
-				}
-			}
+			envFileValues := loadNonEmptyEnvFileValues(".env")
+			missing := missingEnvKeys(meta.EnvKeys, os.Getenv, envFileValues)
 			if len(missing) > 0 {
 				fmt.Printf("Warning: The following environment variables are not set in your host environment:\n")
 				for _, key := range missing {
@@ -601,6 +598,55 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 	}
 
 	return nil
+}
+
+func missingEnvKeys(keys []string, getenv func(string) string, envFileValues map[string]string) []string {
+	var missing []string
+	for _, key := range keys {
+		if getenv(key) == "" && envFileValues[key] == "" {
+			missing = append(missing, key)
+		}
+	}
+	return missing
+}
+
+func loadNonEmptyEnvFileValues(path string) map[string]string {
+	values := make(map[string]string)
+	file, err := os.Open(path)
+	if err != nil {
+		return values
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			continue
+		}
+		values[key] = trimEnvQuotes(value)
+	}
+	return values
+}
+
+func trimEnvQuotes(value string) string {
+	if len(value) < 2 {
+		return value
+	}
+	if (value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'') {
+		return value[1 : len(value)-1]
+	}
+	return value
 }
 
 func determineCommand(metaLLMCmd, overrideCmd string) string {
