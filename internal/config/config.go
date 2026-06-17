@@ -192,6 +192,8 @@ type ToolPresetData struct {
 	Instructions    string
 	MCPConfigGemini string
 	MCPConfigCodex  string
+	RestartPolicy   string
+	RestartDelay    int
 }
 
 const defaultAgentID = "default-agent"
@@ -264,6 +266,8 @@ func LoadToolPreset(presetsDir string, presetName string) (ToolPresetData, error
 		}
 
 		var botPrompt, botLoop, instructions, mcpGemini, mcpCodex string
+		var restartPolicy string
+		var restartDelay int
 		if b, err := os.ReadFile(filepath.Join(dirPath, "bot_prompt.md")); err == nil {
 			botPrompt = string(b)
 		}
@@ -278,6 +282,14 @@ func LoadToolPreset(presetsDir string, presetName string) (ToolPresetData, error
 		}
 		if b, err := os.ReadFile(filepath.Join(dirPath, "mcp_config_codex.toml")); err == nil {
 			mcpCodex = string(b)
+		}
+		var presetMeta struct {
+			RestartPolicy string `toml:"restart_policy"`
+			RestartDelay  int    `toml:"restart_delay"`
+		}
+		if _, err := toml.DecodeFile(tomlPath, &presetMeta); err == nil {
+			restartPolicy = presetMeta.RestartPolicy
+			restartDelay = presetMeta.RestartDelay
 		}
 
 		// Inject files into the parsed tool list if they exist
@@ -303,6 +315,8 @@ func LoadToolPreset(presetsDir string, presetName string) (ToolPresetData, error
 			Instructions:    instructions,
 			MCPConfigGemini: mcpGemini,
 			MCPConfigCodex:  mcpCodex,
+			RestartPolicy:   restartPolicy,
+			RestartDelay:    restartDelay,
 		}, nil
 	}
 

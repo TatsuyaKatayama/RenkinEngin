@@ -187,6 +187,8 @@ func runAssign(cmd *cobra.Command, args []string) error {
 
 	var toolBotPrompts []string
 	var toolBotLoops []string
+	var toolRestartPolicy string
+	var toolRestartDelay int
 
 	for _, input := range toolsPath {
 		var list config.ToolList
@@ -208,6 +210,12 @@ func runAssign(cmd *cobra.Command, args []string) error {
 			}
 			if tpData.BotLoop != "" {
 				toolBotLoops = append(toolBotLoops, tpData.BotLoop)
+			}
+			if tpData.RestartPolicy != "" {
+				toolRestartPolicy = tpData.RestartPolicy
+			}
+			if tpData.RestartDelay > 0 {
+				toolRestartDelay = tpData.RestartDelay
 			}
 		}
 		tList.Tools = append(tList.Tools, list.Tools...)
@@ -304,6 +312,12 @@ func runAssign(cmd *cobra.Command, args []string) error {
 		loopCmd = lConf.LoopCmd
 		restartPolicy = lConf.RestartPolicy
 		restartDelay = lConf.RestartDelay
+		if toolRestartPolicy != "" {
+			restartPolicy = toolRestartPolicy
+		}
+		if toolRestartDelay > 0 {
+			restartDelay = toolRestartDelay
+		}
 		logDir = lConf.LogDir
 		stdoutLog = lConf.StdoutLog
 		stderrLog = lConf.StderrLog
@@ -572,6 +586,10 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 			shouldRestart = true
 		} else if restartPolicy == "on-failure" && exitCode != 0 {
 			shouldRestart = true
+		} else if restartPolicy == "on-success" && exitCode == 0 {
+			shouldRestart = true
+		} else if restartPolicy != "never" && restartPolicy != "" {
+			fmt.Printf("Unknown restart policy %q. Stopping loop.\n", restartPolicy)
 		}
 
 		if !shouldRestart {

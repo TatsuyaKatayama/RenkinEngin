@@ -260,7 +260,7 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 
 	data := GeneratorData{
 		Config:     cfg,
-		EnvKeys:    cfg.CollectEnvKeys(),
+		EnvKeys:    composeEnvKeys(cfg.CollectEnvKeys()),
 		DefaultEnv: []string{},
 		ProxyKeys:  config.GetActiveProxyKeys(),
 	}
@@ -274,6 +274,17 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func composeEnvKeys(keys []string) []string {
+	filtered := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if key == "AGENT_ID" {
+			continue
+		}
+		filtered = append(filtered, key)
+	}
+	return filtered
 }
 
 func GenerateEnv(cfg config.Config) (string, error) {

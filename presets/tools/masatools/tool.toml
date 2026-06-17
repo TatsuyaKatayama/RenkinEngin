@@ -1,3 +1,6 @@
+restart_policy = "on-success"
+restart_delay = 5
+
 [[tool]]
 preset = "python-post"
 

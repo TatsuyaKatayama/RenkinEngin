@@ -214,6 +214,19 @@ func TestDockerComposeGenerationToolEnvironment(t *testing.T) {
 	assert.Contains(t, compose, "- GIT_USER_EMAIL")
 }
 
+func TestDockerComposeDoesNotOverrideAgentIDFromHost(t *testing.T) {
+	cfg := config.Config{
+		LLM: &config.LLMConf{
+			Cmd: "codex",
+		},
+	}
+	compose, err := generator.GenerateDockerCompose(cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, compose, "environment:")
+	assert.Contains(t, compose, "- OPENAI_API_KEY")
+	assert.NotContains(t, compose, "- AGENT_ID")
+}
+
 func TestEnvGenerationGemini(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{

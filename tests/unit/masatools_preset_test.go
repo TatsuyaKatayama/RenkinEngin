@@ -1,6 +1,9 @@
 package unit
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -25,7 +28,7 @@ func TestMasatoolsPresetResolution(t *testing.T) {
 
 	// Verify that both tools are resolved (python-post from base preset, masatools-mcp from masatools.toml)
 	assert.Len(t, tl.Tools, 2)
-	
+
 	names := []string{tl.Tools[0].Name, tl.Tools[1].Name}
 	assert.Contains(t, names, "python-post")
 	assert.Contains(t, names, "masatools-mcp")
@@ -49,4 +52,38 @@ func TestMasatoolsPresetResolution(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, env, "NATS_URL=")
 	assert.Contains(t, env, "API_URL=")
+}
+
+func TestMasatoolsPresetLoopMetadata(t *testing.T) {
+	preset, err := config.LoadToolPreset("../../presets/tools", "masatools")
+	assert.NoError(t, err)
+	assert.Equal(t, "on-success", preset.RestartPolicy)
+	assert.Equal(t, 5, preset.RestartDelay)
+	assert.Contains(t, preset.BotPrompt, "Final JSON Contract")
+	assert.Contains(t, preset.BotPrompt, `{"loop_status":"fatal","reason":"connectivity_failed"}`)
+	assert.Contains(t, preset.Instructions, "masabbs as the source of truth")
+}
+
+func TestCodexBotLoopParsesFinalJsonContract(t *testing.T) {
+	loopTemplate, err := os.ReadFile("../../presets/llms/codex/bot-loop.sh")
+	assert.NoError(t, err)
+
+	rendered := config.RenderLoopTemplate(
+		string(loopTemplate),
+		&config.LLMConf{LoopCmd: `printf '%s\n' '{"loop_status":"idle","reason":"no_task"}'`},
+		"/tmp/renkin/codex-agent",
+	)
+
+	scriptPath := filepath.Join(t.TempDir(), "bot-loop.sh")
+	assert.NoError(t, os.WriteFile(scriptPath, []byte(rendered), 0755))
+
+	output, err := runShellScript(scriptPath)
+	assert.NoError(t, err, output)
+	assert.Contains(t, output, `Renkin loop final JSON: {"loop_status":"idle","reason":"no_task"}`)
+}
+
+func runShellScript(path string) (string, error) {
+	cmd := exec.Command("bash", path)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }
