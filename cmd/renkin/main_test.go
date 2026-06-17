@@ -63,3 +63,85 @@ func TestMissingEnvKeysAcceptsGeneratedEnvFileValues(t *testing.T) {
 
 	assert.Equal(t, []string{"NATS_URL"}, missing)
 }
+
+func TestShouldRestartLoop(t *testing.T) {
+	tests := []struct {
+		name            string
+		restartPolicy   string
+		exitCode        int
+		expectedRestart bool
+		expectedKnown   bool
+	}{
+		{
+			name:            "always restarts on success",
+			restartPolicy:   "always",
+			exitCode:        0,
+			expectedRestart: true,
+			expectedKnown:   true,
+		},
+		{
+			name:            "always restarts on failure",
+			restartPolicy:   "always",
+			exitCode:        1,
+			expectedRestart: true,
+			expectedKnown:   true,
+		},
+		{
+			name:            "on failure restarts on failure",
+			restartPolicy:   "on-failure",
+			exitCode:        1,
+			expectedRestart: true,
+			expectedKnown:   true,
+		},
+		{
+			name:            "on failure stops on success",
+			restartPolicy:   "on-failure",
+			exitCode:        0,
+			expectedRestart: false,
+			expectedKnown:   true,
+		},
+		{
+			name:            "on success restarts on success",
+			restartPolicy:   "on-success",
+			exitCode:        0,
+			expectedRestart: true,
+			expectedKnown:   true,
+		},
+		{
+			name:            "on success stops on failure",
+			restartPolicy:   "on-success",
+			exitCode:        1,
+			expectedRestart: false,
+			expectedKnown:   true,
+		},
+		{
+			name:            "never stops",
+			restartPolicy:   "never",
+			exitCode:        0,
+			expectedRestart: false,
+			expectedKnown:   true,
+		},
+		{
+			name:            "empty policy stops",
+			restartPolicy:   "",
+			exitCode:        0,
+			expectedRestart: false,
+			expectedKnown:   true,
+		},
+		{
+			name:            "unknown policy is not known",
+			restartPolicy:   "sometimes",
+			exitCode:        0,
+			expectedRestart: false,
+			expectedKnown:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restart, known := shouldRestartLoop(tt.restartPolicy, tt.exitCode)
+			assert.Equal(t, tt.expectedRestart, restart)
+			assert.Equal(t, tt.expectedKnown, known)
+		})
+	}
+}

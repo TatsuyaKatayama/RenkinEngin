@@ -424,15 +424,15 @@ func TestRenderLoopTemplate(t *testing.T) {
 AGENT_ID=${AGENT_ID:-default-agent}
 echo "Starting True Renkin Loop Iteration for ${AGENT_ID}..."
 {llm_cmd}
-`
+	`
 	llmConf := &config.LLMConf{
-		LoopCmd: `codex resume {session_id} "$(cat /renkin-conf/bot_prompt.md)"`,
+		LoopCmd: `codex exec resume --skip-git-repo-check {session_id} "$(cat /renkin-conf/bot_prompt.md)"`,
 	}
 
 	rendered := config.RenderLoopTemplate(loopTemplate, llmConf, "/tmp/renkin/masa-agent")
 
 	assert.Contains(t, rendered, "AGENT_ID=${AGENT_ID:-masa-agent}")
-	assert.Contains(t, rendered, `codex resume "${AGENT_ID}-session" "$(cat /renkin-conf/bot_prompt.md)"`)
+	assert.Contains(t, rendered, `codex exec resume --skip-git-repo-check "${AGENT_ID}-session" "$(cat /renkin-conf/bot_prompt.md)"`)
 	assert.NotContains(t, rendered, "{llm_cmd}")
 	assert.NotContains(t, rendered, "default-agent")
 }

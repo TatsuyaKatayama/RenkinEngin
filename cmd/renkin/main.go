@@ -534,6 +534,9 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 	fmt.Printf("Logging stdout to: %s\n", stdoutPath)
 	fmt.Printf("Logging stderr to: %s\n", stderrPath)
 
+	lastExitCode := 0
+	unknownRestartPolicy := false
+
 	for {
 		// Open log files in append mode
 		outF, err := os.OpenFile(stdoutPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -566,6 +569,7 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 				exitCode = -1 // System error (e.g. docker compose not running)
 			}
 		}
+		lastExitCode = exitCode
 
 		nowStrEnd := time.Now().Format("2006-01-02 15:04:05")
 		endMarker := fmt.Sprintf("\n=== SESSION END: %s (Exit Code: %d) ===\n", nowStrEnd, exitCode)
@@ -578,15 +582,10 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 		fmt.Printf("Loop iteration ended at %s with exit code %d\n", nowStrEnd, exitCode)
 
 		// Check restart policy
-		shouldRestart := false
-		if restartPolicy == "always" {
-			shouldRestart = true
-		} else if restartPolicy == "on-failure" && exitCode != 0 {
-			shouldRestart = true
-		} else if restartPolicy == "on-success" && exitCode == 0 {
-			shouldRestart = true
-		} else if restartPolicy != "never" && restartPolicy != "" {
+		shouldRestart, knownPolicy := shouldRestartLoop(restartPolicy, exitCode)
+		if !knownPolicy {
 			fmt.Printf("Unknown restart policy %q. Stopping loop.\n", restartPolicy)
+			unknownRestartPolicy = true
 		}
 
 		if !shouldRestart {
@@ -597,7 +596,29 @@ func runDaemon(cmdToRun string, meta config.Metadata) error {
 		time.Sleep(time.Duration(restartDelay) * time.Second)
 	}
 
+	if unknownRestartPolicy {
+		return fmt.Errorf("unknown restart policy %q", restartPolicy)
+	}
+	if lastExitCode != 0 {
+		return fmt.Errorf("loop command exited with code %d", lastExitCode)
+	}
+
 	return nil
+}
+
+func shouldRestartLoop(restartPolicy string, exitCode int) (bool, bool) {
+	switch restartPolicy {
+	case "", "never":
+		return false, true
+	case "always":
+		return true, true
+	case "on-failure":
+		return exitCode != 0, true
+	case "on-success":
+		return exitCode == 0, true
+	default:
+		return false, false
+	}
 }
 
 func missingEnvKeys(keys []string, getenv func(string) string, envFileValues map[string]string) []string {
