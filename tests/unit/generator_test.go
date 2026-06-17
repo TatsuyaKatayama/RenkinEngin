@@ -71,7 +71,7 @@ func TestDockerfileGenerationMCPServerGitPreset(t *testing.T) {
 	assert.Contains(t, dockerfile, "curl -LsSf https://astral.sh/uv/install.sh | sh")
 	assert.Contains(t, dockerfile, "uv pip install --system --break-system-packages mcp-server-git")
 	assert.Contains(t, dockerfile, "mcp-server-git")
-	// Since MCP configuration is now generated on host during 'assign', 
+	// Since MCP configuration is now generated on host during 'assign',
 	// it's no longer in the Dockerfile's runtime generation script unless 'startup' is used.
 	assert.Contains(t, dockerfile, "renkin-generate-llm-config")
 }
@@ -170,6 +170,19 @@ func TestEnvGenerationCodex(t *testing.T) {
 	env, err := generator.GenerateEnv(cfg)
 	assert.NoError(t, err)
 	assert.Contains(t, env, "OPENAI_API_KEY=")
+	assert.Contains(t, env, "AGENT_ID=")
+}
+
+func TestEnvGenerationWithAgentID(t *testing.T) {
+	cfg := config.Config{
+		LLM: &config.LLMConf{
+			Cmd: "codex",
+		},
+	}
+	env, err := generator.GenerateEnvWithAgentID(cfg, "worker0")
+	assert.NoError(t, err)
+	assert.Contains(t, env, "OPENAI_API_KEY=")
+	assert.Contains(t, env, "AGENT_ID=worker0")
 }
 
 func TestEnvGenerationToolEnvironment(t *testing.T) {

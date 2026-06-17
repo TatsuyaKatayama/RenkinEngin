@@ -242,7 +242,7 @@ func runAssign(cmd *cobra.Command, args []string) error {
 	}
 
 	// Generate .env
-	env, err := generator.GenerateEnv(cfg)
+	env, err := generator.GenerateEnvWithAgentID(cfg, config.ResolveDefaultAgentID(targetDir))
 	if err != nil {
 		return err
 	}

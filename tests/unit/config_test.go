@@ -164,7 +164,7 @@ func TestMCPServerGitToolPreset(t *testing.T) {
 	assert.NotContains(t, tool.Install, "/root/.codex/config.toml")
 	assert.NotContains(t, tool.Install, "/root/.gemini/settings.json")
 	assert.Contains(t, tool.MCPConfigCodex, `args = ["--repository", "/workspace"]`)
-	}
+}
 
 func TestMCPServerGitToolPresetResolution(t *testing.T) {
 	list := config.ToolList{Tools: []config.Tool{{Preset: "mcp-server-git"}}}
@@ -297,6 +297,55 @@ install = "RUN echo forgejo"
 	assert.Equal(t, "forgejo", toolList.Tools[1].Name)
 }
 
+func TestResolveDuplicateNestedPresetWithoutOuterName(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-nested-dup-test")
+	defer os.RemoveAll(tmpDir)
+
+	presetsDir := filepath.Join(tmpDir, "presets")
+	os.MkdirAll(presetsDir, 0755)
+
+	pythonPostContent := `
+[[tool]]
+name = "python-post"
+type = "shell"
+install = "RUN echo python"
+`
+	os.WriteFile(filepath.Join(presetsDir, "python-post.toml"), []byte(pythonPostContent), 0644)
+
+	masatoolsDir := filepath.Join(presetsDir, "masatools")
+	os.MkdirAll(masatoolsDir, 0755)
+	masatoolsContent := `
+[[tool]]
+preset = "python-post"
+
+[[tool]]
+name = "masatools-mcp"
+type = "shell"
+install = "RUN echo masatools"
+`
+	os.WriteFile(filepath.Join(masatoolsDir, "tool.toml"), []byte(masatoolsContent), 0644)
+	os.WriteFile(
+		filepath.Join(masatoolsDir, "mcp_config_codex.toml"),
+		[]byte("[mcp_servers.masatools]\ncommand = \"python\""),
+		0644,
+	)
+
+	toolList := config.ToolList{
+		Tools: []config.Tool{
+			{Preset: "masatools"},
+			{Preset: "python-post"},
+		},
+	}
+
+	err := toolList.ResolvePresets(presetsDir)
+	assert.NoError(t, err)
+	assert.Len(t, toolList.Tools, 2)
+	assert.Equal(t, "python-post", toolList.Tools[0].Name)
+	assert.Equal(t, "masatools-mcp", toolList.Tools[1].Name)
+	assert.Empty(t, toolList.Tools[0].MCPConfigCodex)
+	assert.Contains(t, toolList.Tools[1].MCPConfigCodex, "[mcp_servers.masatools]")
+}
+
 func TestCollectEnvKeys(t *testing.T) {
 	cfg := config.Config{
 		LLM: &config.LLMConf{
@@ -311,6 +360,7 @@ func TestCollectEnvKeys(t *testing.T) {
 	}
 	keys := cfg.CollectEnvKeys()
 	assert.Contains(t, keys, "GEMINI_API_KEY")
+	assert.Contains(t, keys, "AGENT_ID")
 	assert.Contains(t, keys, "VAR1")
 	assert.Contains(t, keys, "VAR2")
 	assert.Contains(t, keys, "VAR3")

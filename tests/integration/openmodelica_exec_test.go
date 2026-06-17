@@ -13,6 +13,9 @@ func TestDockerExecOpenModelicaHelp(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	if os.Getenv("CI") == "" {
+		t.Skip("skipping OpenModelica Docker integration test outside CI")
+	}
 
 	tmpDir, _ := os.MkdirTemp("", "renkin-om-test")
 	defer os.RemoveAll(tmpDir)
@@ -51,12 +54,10 @@ container = "/workspace"
 	}
 
 	// Build and Start
-	if os.Getenv("CI") != "" {
-		buildCmd := exec.Command("docker", "compose", "build")
-		buildCmd.Dir = targetDir
-		if out, err := buildCmd.CombinedOutput(); err != nil {
-			t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
-		}
+	buildCmd = exec.Command("docker", "compose", "build")
+	buildCmd.Dir = targetDir
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("docker compose build failed: %v\n%s", err, string(out))
 	}
 
 	upCmd := exec.Command("docker", "compose", "up", "-d")
@@ -64,11 +65,11 @@ container = "/workspace"
 	if out, err := upCmd.CombinedOutput(); err != nil {
 		t.Fatalf("docker compose up failed: %v\n%s", err, string(out))
 	}
-	
+
 	// Execute omc --help using absolute path
 	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "/usr/bin/omc", "--help")
 	execCmd.Dir = targetDir
-	
+
 	output, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
 	assert.Contains(t, string(output), "Usage")
@@ -76,7 +77,7 @@ container = "/workspace"
 	// Verify MSL v4.1.0 is installed and loadable
 	loadCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "echo 'loadModel(Modelica, {\"4.1.0\"}); getErrorString();' | /usr/bin/omc")
 	loadCmd.Dir = targetDir
-	
+
 	loadOutput, err := loadCmd.CombinedOutput()
 	assert.NoError(t, err, string(loadOutput))
 	assert.Contains(t, string(loadOutput), "true", "MSL v4.1.0 should be loadable")

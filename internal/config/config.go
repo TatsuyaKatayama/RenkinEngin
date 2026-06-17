@@ -107,16 +107,34 @@ func (tl *ToolList) ResolvePresets(presetsDir string) error {
 	}
 
 	var uniqueTools []Tool
-	seenNames := make(map[string]bool)
+	seenKeys := make(map[string]bool)
 	for _, t := range resolvedTools {
-		if !seenNames[t.Name] {
+		key := toolIdentityKey(t)
+		if !seenKeys[key] {
 			uniqueTools = append(uniqueTools, t)
-			seenNames[t.Name] = true
+			seenKeys[key] = true
 		}
 	}
 
 	tl.Tools = uniqueTools
 	return tl.validate()
+}
+
+func toolIdentityKey(t Tool) string {
+	switch {
+	case t.Name != "":
+		return "name:" + t.Name
+	case t.Preset != "":
+		return "preset:" + t.Preset
+	case t.MCPConfigCodex != "":
+		return "mcp-codex:" + t.MCPConfigCodex
+	case t.MCPConfigGemini != "":
+		return "mcp-gemini:" + t.MCPConfigGemini
+	case t.Install != "":
+		return "install:" + t.Install
+	default:
+		return fmt.Sprintf("tool:%s:%s:%d", t.Type, t.Image, t.Port)
+	}
 }
 
 func resolveTools(tools []Tool, presetsDir string, resolving map[string]bool) ([]Tool, error) {
@@ -267,6 +285,9 @@ func LoadToolPreset(presetsDir string, presetName string) (ToolPresetData, error
 			if instructions != "" {
 				presetTools.Tools[i].Instructions = instructions
 			}
+			if presetTools.Tools[i].Preset != "" {
+				continue
+			}
 			if mcpGemini != "" {
 				presetTools.Tools[i].MCPConfigGemini = mcpGemini
 			}
@@ -404,6 +425,7 @@ func (c *Config) CollectEnvKeys() []string {
 	var envKeys []string
 	if c.LLM != nil {
 		envKeys = append(envKeys, c.LLM.GetEnvKeys()...)
+		envKeys = append(envKeys, "AGENT_ID")
 	}
 	envKeys = append(envKeys, GetActiveProxyKeys()...)
 	for _, t := range c.ToolList.Tools {

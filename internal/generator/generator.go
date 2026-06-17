@@ -83,7 +83,7 @@ const dockerComposeTemplate = `services:
 {{- end}}{{end}}
 `
 
-const envTemplate = `{{range .EnvKeys}}{{.}}=
+const envTemplate = `{{range .Entries}}{{.Key}}={{.Value}}
 {{end}}`
 
 type GeneratorData struct {
@@ -92,6 +92,11 @@ type GeneratorData struct {
 	DefaultEnv           []string
 	ProxyKeys            []string
 	RuntimeConfigInstall string
+}
+
+type EnvEntry struct {
+	Key   string
+	Value string
 }
 
 func GenerateGeminiSettings(cfg config.Config) string {
@@ -272,6 +277,10 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 }
 
 func GenerateEnv(cfg config.Config) (string, error) {
+	return GenerateEnvWithAgentID(cfg, "")
+}
+
+func GenerateEnvWithAgentID(cfg config.Config, agentID string) (string, error) {
 	tmpl, err := template.New(".env").Parse(envTemplate)
 	if err != nil {
 		return "", err
@@ -282,10 +291,19 @@ func GenerateEnv(cfg config.Config) (string, error) {
 		return "", nil
 	}
 
+	entries := make([]EnvEntry, 0, len(envKeys))
+	for _, key := range envKeys {
+		value := ""
+		if key == "AGENT_ID" {
+			value = agentID
+		}
+		entries = append(entries, EnvEntry{Key: key, Value: value})
+	}
+
 	data := struct {
-		EnvKeys []string
+		Entries []EnvEntry
 	}{
-		EnvKeys: envKeys,
+		Entries: entries,
 	}
 
 	var buf bytes.Buffer
