@@ -82,6 +82,28 @@ func TestCodexBotLoopParsesFinalJsonContract(t *testing.T) {
 	assert.Contains(t, output, `Renkin loop final JSON: {"loop_status":"idle","reason":"no_task"}`)
 }
 
+func TestCodexBotLoopRequiresAuthForCodexCommand(t *testing.T) {
+	loopTemplate, err := os.ReadFile("../../presets/llms/codex/bot-loop.sh")
+	assert.NoError(t, err)
+
+	rendered := config.RenderLoopTemplate(
+		string(loopTemplate),
+		&config.LLMConf{LoopCmd: `codex exec "unused"`},
+		"/tmp/renkin/codex-agent",
+	)
+
+	scriptPath := filepath.Join(t.TempDir(), "bot-loop.sh")
+	assert.NoError(t, os.WriteFile(scriptPath, []byte(rendered), 0755))
+
+	output, err := runShellScript(scriptPath)
+	assert.Error(t, err)
+	assert.Contains(t, output, "Codex authentication is not configured in the container.")
+	assert.Contains(t, output, "renkin auth codex")
+	assert.Contains(t, output, "Or copy your host auth file outside the container")
+	assert.NotContains(t, output, "mkdir -p .renkin/codex")
+	assert.Contains(t, output, "cp ~/.codex/auth.json .renkin/codex/auth.json")
+}
+
 func runShellScript(path string) (string, error) {
 	cmd := exec.Command("bash", path)
 	output, err := cmd.CombinedOutput()

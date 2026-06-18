@@ -81,6 +81,13 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 	var force bool
 	kaikoCmd.Flags().BoolVarP(&force, "yes", "y", false, "Skip confirmation prompt")
 
+	var authCmd = &cobra.Command{
+		Use:   "auth <provider>",
+		Short: "Run interactive authentication inside the agent container",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runAuth,
+	}
+
 	var toolCmd = &cobra.Command{
 		Use:   "tool [preset_name|list]",
 		Short: "List tool presets or show installation details",
@@ -88,7 +95,7 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 		RunE:  runTool,
 	}
 
-	rootCmd.AddCommand(assignCmd, startCmd, stopCmd, restartCmd, kaikoCmd, toolCmd)
+	rootCmd.AddCommand(assignCmd, startCmd, stopCmd, restartCmd, kaikoCmd, authCmd, toolCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -698,6 +705,30 @@ func runRestart(cmd *cobra.Command, args []string) error {
 	}
 
 	return runStart(cmd, args)
+}
+
+func runAuth(cmd *cobra.Command, args []string) error {
+	if _, err := os.Stat("docker-compose.yml"); os.IsNotExist(err) {
+		return fmt.Errorf("docker-compose.yml not found. Please run 'renkin assign' first")
+	}
+
+	switch args[0] {
+	case "codex":
+		fmt.Println("Starting containers for Codex authentication...")
+		if err := docker.ComposeUp(); err != nil {
+			return err
+		}
+		if !noConfig {
+			if err := docker.Exec("llm-agent", "if command -v renkin-generate-llm-config >/dev/null 2>&1; then renkin-generate-llm-config; fi"); err != nil {
+				return err
+			}
+		}
+		fmt.Println("Running Codex device authentication in the llm-agent container.")
+		fmt.Println("The resulting auth file is stored on the host side under .renkin/codex/auth.json.")
+		return docker.ExecAttach("llm-agent", "codex login --device-auth")
+	default:
+		return fmt.Errorf("unsupported auth provider %q; supported providers: codex", args[0])
+	}
 }
 
 func runKaiko(cmd *cobra.Command, args []string) error {

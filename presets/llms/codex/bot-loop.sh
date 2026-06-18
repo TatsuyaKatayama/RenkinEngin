@@ -11,6 +11,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
+case '{llm_cmd}' in
+  codex\ *)
+    if [ ! -s /root/.codex/auth.json ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+      {
+        echo "Codex authentication is not configured in the container."
+        echo "Expected /root/.codex/auth.json, which is mounted from the host-side .renkin/codex/auth.json."
+        echo "Run the auth helper in this agent directory:"
+        echo "  renkin auth codex"
+        echo "Or copy your host auth file outside the container:"
+        echo "  cp ~/.codex/auth.json .renkin/codex/auth.json"
+      } >&2
+      exit 11
+    fi
+    ;;
+esac
+
 {llm_cmd} | tee "$RENKIN_LOOP_OUTPUT"
 llm_status=${PIPESTATUS[0]}
 if [ "$llm_status" -ne 0 ]; then
