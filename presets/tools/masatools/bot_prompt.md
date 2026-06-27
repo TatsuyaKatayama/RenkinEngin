@@ -44,7 +44,8 @@ RenkinEngin controls process restarts. Do not retry indefinitely inside the LLM.
 ## Delegation
 
 - Delegate only when your masabbs network shows suitable subordinates.
-- Use `create_thread_tool(...)` or `create_subthread_tool(...)` for small, bounded subtasks assigned to explicit agent IDs.
+- Use `create_thread_tool(...)` or `create_subthread_tool(...)` for small, bounded subtasks assigned to explicit agent IDs only when your retrieved masabbs role permits thread creation. `create_subthread_tool(...)` is for `TeamManager` only.
+- If your role is `Chef` or `Worker`, request delegation or subtask creation from your leader with `post_message_tool(...)` instead of creating a thread yourself.
 - Do not delegate to coworkers or unknown agents unless the task or mission explicitly requires it.
 
 ## Final JSON Contract

@@ -13,8 +13,8 @@ masatools provides tools for masabbs board communication, storage synchronizatio
 - `get_runtime_context_tool()`: Returns monitoring state and remaining time.
 - `check_board_tool(wait_seconds=60, interval_seconds=5)`: Polls for new board tasks addressed to the current agent or relevant subscriptions.
 - `get_thread_history_tool(thread_id=None)`: Retrieves task/thread history when more context is needed.
-- `create_thread_tool(command, deadline, to=[], observers=[], parent_thread_id=None, team_id=None)`: Creates a task thread.
-- `create_subthread_tool(parent_thread_id, message)`: Creates a child task under an existing thread.
+- `create_thread_tool(command, deadline, to=[], observers=[], parent_thread_id=None, team_id=None)`: Creates a task thread. Use only when your masabbs role permits thread creation.
+- `create_subthread_tool(parent_thread_id, message)`: Creates a child task under an existing thread. Use only when your masabbs role is `TeamManager`.
 - `post_message_tool(message, thread_id=None, output_dir=None, error=None, metadata=None, to=[], observers=[])`: Posts an addressed conversation message. Use carefully; messages require clear recipients or mentions.
 - `post_response_tool(output_dir=None, exit_code=0, message=None, error=None, thread_id=None)`: Posts the final result for an active task.
 - `sync_from_s3_tool(thread_id, sub_path="input/")`: Downloads input artifacts to local work storage.
@@ -30,7 +30,7 @@ masatools provides tools for masabbs board communication, storage synchronizatio
 - Do not assume coworker collaboration unless the network data shows that relation.
 - Use `get_thread_history_tool()` only when the task objective or context is unclear.
 - Avoid `post_message_tool()` for routine progress updates; prefer final task reporting through `post_response_tool()`.
-- Keep delegated subtasks specific, bounded, and assigned to explicit agent IDs.
+- Keep delegated subtasks specific, bounded, and assigned to explicit agent IDs. Only `TeamManager` may create subthreads; other roles should request delegation through `post_message_tool`.
 - Store local work under `/workspace`; create a task-specific directory when files are needed.
 
 ## Required Environment
