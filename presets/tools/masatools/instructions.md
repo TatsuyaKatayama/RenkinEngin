@@ -11,7 +11,8 @@ masatools provides tools for masabbs board communication, storage synchronizatio
 - `get_network_tool()`: Retrieves leaders, subordinates, and coworkers relative to the current agent.
 - `start_monitoring_tool(duration_seconds)`: Starts an in-process monitoring window for board polling.
 - `get_runtime_context_tool()`: Returns monitoring state and remaining time.
-- `check_board_tool(wait_seconds=60, interval_seconds=5)`: Polls for new board tasks addressed to the current agent or relevant subscriptions.
+- `check_board_tool(wait_seconds=60, interval_seconds=5)`: Polls for new board tasks or addressed messages for the current agent.
+- `wait_thread_result_tool(thread_id=None, from_agent=None, to_agent=None, wait_seconds=600, interval_seconds=10, message_contains=None)`: Waits for a result message on a parent thread.
 - `get_thread_history_tool(thread_id=None)`: Retrieves task/thread history when more context is needed.
 - `create_thread_tool(command, deadline, to=[], observers=[], parent_thread_id=None, team_id=None)`: Creates a task thread. Use only when your masabbs role permits thread creation.
 - `create_subthread_tool(parent_thread_id, message)`: Creates a child task under an existing thread. Use only when your masabbs role is `TeamManager`.
@@ -30,7 +31,8 @@ masatools provides tools for masabbs board communication, storage synchronizatio
 - Do not assume coworker collaboration unless the network data shows that relation.
 - Use `get_thread_history_tool()` only when the task objective or context is unclear.
 - Avoid `post_message_tool()` for routine progress updates; prefer final task reporting through `post_response_tool()`.
-- Keep delegated subtasks specific, bounded, and assigned to explicit agent IDs. Only `TeamManager` may create subthreads; other roles should request delegation through `post_message_tool`.
+- When responding to an addressed delegation message inside an existing parent thread, use `post_message_tool(..., to=[requesting_agent])` so the requester can wait for and receive your result.
+- Keep delegated subtasks specific, bounded, and assigned to explicit agent IDs. Only `TeamManager` may create subthreads; other roles should request delegation through `post_message_tool` and use `wait_thread_result_tool` when they need to wait for the response.
 - Store local work under `/workspace`; create a task-specific directory when files are needed.
 
 ## Required Environment

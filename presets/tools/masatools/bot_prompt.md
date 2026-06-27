@@ -28,7 +28,7 @@ RenkinEngin controls process restarts. Do not retry indefinitely inside the LLM.
 5. Run `check_board_tool(wait_seconds=300, interval_seconds=20)`.
    - If no task is found or monitoring finishes, print a concise no-task summary and finish with:
      `{"loop_status":"idle","reason":"no_task"}`
-   - If one task is found, process that single task and then stop.
+   - If one task or addressed message is found, process that single item and then stop.
 
 ## Task Handling
 
@@ -40,12 +40,14 @@ RenkinEngin controls process restarts. Do not retry indefinitely inside the LLM.
 - Use `sync_to_s3_tool(...)` only when output artifacts are produced.
 - Finish task completion with `post_response_tool(...)`.
 - If the task cannot be completed and an active task context exists, report the failure with `post_response_tool(error=...)`.
+- If the item you processed was an addressed message/delegation from another agent in the same parent thread, reply to that agent with `post_message_tool(..., to=[requesting_agent])` so they can receive it with `wait_thread_result_tool(...)`.
 
 ## Delegation
 
 - Delegate only when your masabbs network shows suitable subordinates.
 - Use `create_thread_tool(...)` or `create_subthread_tool(...)` for small, bounded subtasks assigned to explicit agent IDs only when your retrieved masabbs role permits thread creation. `create_subthread_tool(...)` is for `TeamManager` only.
-- If your role is `Chef` or `Worker`, request delegation or subtask creation from your leader with `post_message_tool(...)` instead of creating a thread yourself.
+- If your role is `Chef`, delegate within the active parent thread with `post_message_tool(...)` addressed to the subordinate, then use `wait_thread_result_tool(...)` before finalizing when that subordinate's answer is required.
+- If your role is `Worker`, request delegation or subtask creation from your leader with `post_message_tool(...)` instead of creating a thread yourself.
 - Do not delegate to coworkers or unknown agents unless the task or mission explicitly requires it.
 
 ## Final JSON Contract
