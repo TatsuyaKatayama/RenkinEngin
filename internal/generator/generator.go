@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -32,6 +33,13 @@ const dockerComposeTemplate = `services:
       args:
 {{- range .ProxyKeys}}
         - {{.}}
+{{- end}}
+{{- end}}
+{{- if .HealthTools}}
+    depends_on:
+{{- range .HealthTools}}
+      {{.Name}}:
+        condition: service_healthy
 {{- end}}
 {{- end}}
     stdin_open: true
@@ -80,6 +88,13 @@ const dockerComposeTemplate = `services:
       - {{.}}
 {{- end}}
 {{- end}}
+{{- if .HealthPath}}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:{{.Port}}{{.HealthPath}}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+{{- end}}
 {{- end}}{{end}}
 `
 
@@ -91,6 +106,7 @@ type GeneratorData struct {
 	EnvKeys              []string
 	DefaultEnv           []string
 	ProxyKeys            []string
+	HealthTools          []config.Tool
 	RuntimeConfigInstall string
 }
 
@@ -259,10 +275,11 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 	}
 
 	data := GeneratorData{
-		Config:     cfg,
-		EnvKeys:    composeEnvKeys(cfg.CollectEnvKeys()),
-		DefaultEnv: []string{},
-		ProxyKeys:  config.GetActiveProxyKeys(),
+		Config:      cfg,
+		EnvKeys:     composeEnvKeys(collectAgentEnvKeys(cfg)),
+		DefaultEnv:  []string{},
+		ProxyKeys:   config.GetActiveProxyKeys(),
+		HealthTools: mcpHealthTools(cfg),
 	}
 
 	if cfg.LLM != nil {
@@ -279,12 +296,51 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 func composeEnvKeys(keys []string) []string {
 	filtered := make([]string, 0, len(keys))
 	for _, key := range keys {
-		if key == "AGENT_ID" {
+		if key == "AGENT_ID" || containsEnvAssignment(key) {
 			continue
 		}
 		filtered = append(filtered, key)
 	}
 	return filtered
+}
+
+func collectAgentEnvKeys(cfg config.Config) []string {
+	var envKeys []string
+	if cfg.LLM != nil {
+		envKeys = append(envKeys, cfg.LLM.GetEnvKeys()...)
+		envKeys = append(envKeys, "AGENT_ID")
+	}
+	envKeys = append(envKeys, config.GetActiveProxyKeys()...)
+	for _, t := range cfg.ToolList.Tools {
+		if t.Type == "shell" {
+			envKeys = append(envKeys, t.Environment...)
+		}
+	}
+
+	seen := make(map[string]bool)
+	var uniqueKeys []string
+	for _, key := range envKeys {
+		if containsEnvAssignment(key) || seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniqueKeys = append(uniqueKeys, key)
+	}
+	return uniqueKeys
+}
+
+func mcpHealthTools(cfg config.Config) []config.Tool {
+	var tools []config.Tool
+	for _, tool := range cfg.ToolList.Tools {
+		if tool.Type == "mcp" && tool.HealthPath != "" {
+			tools = append(tools, tool)
+		}
+	}
+	return tools
+}
+
+func containsEnvAssignment(key string) bool {
+	return strings.Contains(key, "=")
 }
 
 func GenerateEnv(cfg config.Config) (string, error) {

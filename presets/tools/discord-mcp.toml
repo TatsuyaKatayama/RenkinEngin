@@ -1,0 +1,33 @@
+[[tool]]
+name = "discord-mcp"
+type = "mcp"
+image = "saseq/discord-mcp:latest"
+port = 8085
+health_path = "/actuator/health"
+environment = [
+    "SPRING_PROFILES_ACTIVE=http",
+    "DISCORD_TOKEN",
+    "DISCORD_GUILD_ID",
+    "DISCORD_CHANNEL_ID",
+    "DISCORD_MCP_URL",
+]
+mcp_config_codex = """
+[mcp_servers.discord]
+url = "http://discord-mcp:8085/mcp"
+http_headers = { Accept = "text/event-stream, application/json" }
+"""
+mcp_config_gemini = """
+    "discord": {"url": "http://discord-mcp:8085/mcp"}
+"""
+instructions = """
+# discord-mcp
+MCP server for Discord channel communication.
+
+The Discord token is held only by the `discord-mcp` compose service. Agent
+containers connect to `http://discord-mcp:8085/mcp` through the compose network.
+The host-side Bot Server should use `DISCORD_MCP_URL`, defaulting to
+`http://localhost:8085/mcp`.
+
+Agents must reply to the original Discord message when completing work so the
+Bot Server can confirm resolution through `message_reference`.
+"""

@@ -59,6 +59,7 @@ type Tool struct {
 	Instructions    string   `toml:"instructions"`
 	Image           string   `toml:"image"`
 	Port            int      `toml:"port"`
+	HealthPath      string   `toml:"health_path"`
 	Environment     []string `toml:"environment"`
 }
 
@@ -182,6 +183,7 @@ func hasToolOverrides(t Tool) bool {
 		t.Instructions != "" ||
 		t.Image != "" ||
 		t.Port != 0 ||
+		t.HealthPath != "" ||
 		len(t.Environment) > 0
 }
 
@@ -375,6 +377,9 @@ func applyToolOverrides(pt *Tool, t Tool) {
 	if t.Port != 0 {
 		pt.Port = t.Port
 	}
+	if t.HealthPath != "" {
+		pt.HealthPath = t.HealthPath
+	}
 	pt.Environment = append(pt.Environment, t.Environment...)
 }
 
@@ -449,6 +454,9 @@ func (c *Config) CollectEnvKeys() []string {
 	seen := make(map[string]bool)
 	var uniqueKeys []string
 	for _, key := range envKeys {
+		if strings.Contains(key, "=") {
+			continue
+		}
 		if seen[key] {
 			continue
 		}
