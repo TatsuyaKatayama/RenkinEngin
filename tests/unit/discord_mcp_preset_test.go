@@ -37,9 +37,15 @@ func TestDiscordMCPPresetResolution(t *testing.T) {
 	assert.Contains(t, tool.Environment, "DISCORD_GUILD_ID")
 	assert.Contains(t, tool.Environment, "DISCORD_CHANNEL_ID")
 	assert.Contains(t, tool.Environment, "DISCORD_MCP_URL")
+	assert.Contains(t, tool.Environment, "DISCORD_MCP_STATE_FILE=/workspace/.discord_mcp_state.properties")
+	assert.Contains(t, tool.Environment, "DISCORD_LAST_MESSAGE_ID")
 	assert.Contains(t, tool.MCPConfigCodex, "[mcp_servers.discord]")
 	assert.Contains(t, tool.MCPConfigCodex, `url = "http://discord-mcp:8085/mcp"`)
 	assert.Contains(t, tool.MCPConfigGemini, `"discord"`)
+	assert.Contains(t, tool.Instructions, "read_new_messages")
+	assert.Contains(t, tool.Instructions, "get_user_id_by_name")
+	assert.Contains(t, tool.Instructions, "<@sender_id>")
+	assert.Contains(t, tool.Instructions, "Do not use the message ID of the last message you sent")
 	assert.Contains(t, tool.Instructions, "message_reference")
 }
 
@@ -58,6 +64,8 @@ func TestDiscordMCPPresetEnvGeneration(t *testing.T) {
 	assert.Contains(t, env, "DISCORD_GUILD_ID=")
 	assert.Contains(t, env, "DISCORD_CHANNEL_ID=")
 	assert.Contains(t, env, "DISCORD_MCP_URL=")
+	assert.Contains(t, env, "DISCORD_LAST_MESSAGE_ID=")
+	assert.NotContains(t, env, "DISCORD_MCP_STATE_FILE=/workspace/.discord_mcp_state.properties=")
 	assert.NotContains(t, env, "SPRING_PROFILES_ACTIVE=http=")
 }
 
@@ -81,6 +89,7 @@ func TestDiscordMCPPresetDockerCompose(t *testing.T) {
 	assert.Contains(t, compose, `- "8085:8085"`)
 	assert.Contains(t, compose, "- SPRING_PROFILES_ACTIVE=http")
 	assert.Contains(t, compose, "- DISCORD_TOKEN")
+	assert.Contains(t, compose, "- DISCORD_MCP_STATE_FILE=/workspace/.discord_mcp_state.properties")
 	assert.Contains(t, compose, "volumes:")
 	assert.Contains(t, compose, "- ./workspace:/workspace")
 	assert.Contains(t, compose, "depends_on:")

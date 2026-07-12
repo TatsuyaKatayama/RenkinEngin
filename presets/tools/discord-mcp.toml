@@ -11,6 +11,8 @@ environment = [
     "DISCORD_GUILD_ID",
     "DISCORD_CHANNEL_ID",
     "DISCORD_MCP_URL",
+    "DISCORD_MCP_STATE_FILE=/workspace/.discord_mcp_state.properties",
+    "DISCORD_LAST_MESSAGE_ID",
 ]
 mcp_config_codex = """
 [mcp_servers.discord]
@@ -29,8 +31,25 @@ The Discord token is held only by the `discord-mcp` compose service. Agent
 containers connect to `http://discord-mcp:8085/mcp` through the compose network.
 The shared agent workspace is mounted at `/workspace` so file tools can send
 artifacts produced by the agent.
+`read_new_messages` stores the last checked Discord message ID in
+`DISCORD_MCP_STATE_FILE` (default `/workspace/.discord_mcp_state.properties`).
+`DISCORD_LAST_MESSAGE_ID` can seed the first checkpoint when no state file
+entry exists.
 The host-side Bot Server should use `DISCORD_MCP_URL`, defaulting to
 `http://localhost:8085/mcp`.
+
+When polling Discord as an agent, read only inbound messages newer than the
+last checked inbound message ID persisted in the environment or state file.
+Use `read_new_messages` for this checkpointed flow; use the underlying
+`read_messages` semantics only to fetch messages after the stored inbound
+message ID when a manual cursor is needed.
+Resolve your own Discord user ID with `get_user_id_by_name`, then respond only
+to messages that mention you. Match the sender's language, prefix every reply
+with `<@sender_id>`, and send the reply with `send_message`.
+Do not reply to your own messages or to messages that do not mention you. After
+processing inbound messages, persist the newest inbound message ID as checked.
+Do not use the message ID of the last message you sent as the next read
+checkpoint.
 
 Agents must reply to the original Discord message when completing work so the
 Bot Server can confirm resolution through `message_reference`.
