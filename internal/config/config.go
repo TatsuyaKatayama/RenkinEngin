@@ -58,6 +58,7 @@ type Tool struct {
 	MCPConfigCodex  string   `toml:"mcp_config_codex"`
 	Instructions    string   `toml:"instructions"`
 	Image           string   `toml:"image"`
+	BuildContext    string   `toml:"build_context"`
 	Port            int      `toml:"port"`
 	HealthPath      string   `toml:"health_path"`
 	Environment     []string `toml:"environment"`
@@ -131,10 +132,14 @@ func toolIdentityKey(t Tool) string {
 		return "mcp-codex:" + t.MCPConfigCodex
 	case t.MCPConfigGemini != "":
 		return "mcp-gemini:" + t.MCPConfigGemini
+	case t.Image != "":
+		return "image:" + t.Image
+	case t.BuildContext != "":
+		return "build-context:" + t.BuildContext
 	case t.Install != "":
 		return "install:" + t.Install
 	default:
-		return fmt.Sprintf("tool:%s:%s:%d", t.Type, t.Image, t.Port)
+		return fmt.Sprintf("tool:%s:%s:%s:%d", t.Type, t.Image, t.BuildContext, t.Port)
 	}
 }
 
@@ -182,6 +187,7 @@ func hasToolOverrides(t Tool) bool {
 		t.Startup != "" ||
 		t.Instructions != "" ||
 		t.Image != "" ||
+		t.BuildContext != "" ||
 		t.Port != 0 ||
 		t.HealthPath != "" ||
 		len(t.Environment) > 0
@@ -374,6 +380,9 @@ func applyToolOverrides(pt *Tool, t Tool) {
 	if t.Image != "" {
 		pt.Image = t.Image
 	}
+	if t.BuildContext != "" {
+		pt.BuildContext = t.BuildContext
+	}
 	if t.Port != 0 {
 		pt.Port = t.Port
 	}
@@ -388,8 +397,8 @@ func (tl ToolList) validate() error {
 		if t.Type == "shell" && t.Install == "" {
 			return fmt.Errorf("tool %s: install is required for shell type", t.Name)
 		}
-		if t.Type == "mcp" && (t.Image == "" || t.Port == 0) {
-			return fmt.Errorf("tool %s: image and port are required for mcp type", t.Name)
+		if t.Type == "mcp" && ((t.Image == "" && t.BuildContext == "") || t.Port == 0) {
+			return fmt.Errorf("tool %s: image or build_context and port are required for mcp type", t.Name)
 		}
 	}
 	return nil

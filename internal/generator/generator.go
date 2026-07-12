@@ -79,7 +79,13 @@ const dockerComposeTemplate = `services:
 
 {{- range .ToolList.Tools}}{{if eq .Type "mcp"}}
   {{.Name}}:
+{{- if .BuildContext}}
+    build:
+      context: {{.BuildContext}}
+{{- end}}
+{{- if .Image}}
     image: {{.Image}}
+{{- end}}
     ports:
       - "{{.Port}}:{{.Port}}"
 {{- if .Environment}}

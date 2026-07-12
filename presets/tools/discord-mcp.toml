@@ -1,7 +1,8 @@
 [[tool]]
 name = "discord-mcp"
 type = "mcp"
-image = "saseq/discord-mcp:latest"
+image = "renkin/discord-mcp:fork"
+build_context = "https://github.com/TatsuyaKatayama/discord-mcp.git"
 port = 8085
 health_path = "/actuator/health"
 environment = [
@@ -21,7 +22,8 @@ mcp_config_gemini = """
 """
 instructions = """
 # discord-mcp
-MCP server for Discord channel communication.
+MCP server for Discord channel communication, built from
+https://github.com/TatsuyaKatayama/discord-mcp.git.
 
 The Discord token is held only by the `discord-mcp` compose service. Agent
 containers connect to `http://discord-mcp:8085/mcp` through the compose network.
