@@ -12,9 +12,10 @@ type BoardAdapter interface {
 }
 
 type Poller struct {
-	adapter BoardAdapter
-	store   *StateStore
-	log     io.Writer
+	adapter    BoardAdapter
+	store      *StateStore
+	log        io.Writer
+	dispatcher *Dispatcher
 }
 
 func NewPoller(adapter BoardAdapter, store *StateStore, log io.Writer) *Poller {
@@ -26,6 +27,10 @@ func NewPoller(adapter BoardAdapter, store *StateStore, log io.Writer) *Poller {
 		store:   store,
 		log:     log,
 	}
+}
+
+func (p *Poller) SetDispatcher(dispatcher *Dispatcher) {
+	p.dispatcher = dispatcher
 }
 
 func (p *Poller) Run(ctx context.Context, interval time.Duration) error {
@@ -60,6 +65,12 @@ func (p *Poller) RunOnce(ctx context.Context) ([]BoardItem, error) {
 		fmt.Fprintf(p.log, "new board item: id=%s channel=%s author=%s\n", item.ID, item.ChannelID, item.AuthorID)
 	}
 	state.Checkpoint = next
+	if p.dispatcher != nil {
+		state, err = p.dispatcher.DispatchNewItems(ctx, state, items)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := p.store.Save(state); err != nil {
 		return nil, err
 	}
