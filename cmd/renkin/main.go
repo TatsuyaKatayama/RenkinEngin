@@ -3,12 +3,16 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/TatsuyaKatayama/RenkinEngin/internal/bot"
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/docker"
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/generator"
@@ -24,6 +28,12 @@ var (
 	overrideCmd string
 	noConfig    bool
 	loopCmd     string
+	botMCPURL   string
+	botChannel  string
+	botUserID   string
+	botCmd      string
+	botState    string
+	botInterval time.Duration
 )
 
 func main() {
@@ -95,7 +105,35 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 		RunE:  runTool,
 	}
 
-	rootCmd.AddCommand(assignCmd, startCmd, stopCmd, restartCmd, kaikoCmd, authCmd, toolCmd)
+	var botRootCmd = &cobra.Command{
+		Use:   "bot",
+		Short: "Run the Go-side Discord polling bot",
+	}
+	var botRunCmd = &cobra.Command{
+		Use:   "run",
+		Short: "Poll Discord through MCP and dispatch matching work in the foreground",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runBot(cmd, false)
+		},
+	}
+	var botRunOnceCmd = &cobra.Command{
+		Use:   "run-once",
+		Short: "Run one Discord poll cycle and dispatch at most one item",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runBot(cmd, true)
+		},
+	}
+	for _, c := range []*cobra.Command{botRunCmd, botRunOnceCmd} {
+		c.Flags().StringVar(&botMCPURL, "mcp-url", "", "Discord MCP endpoint URL (default: DISCORD_MCP_URL from host/.env or http://localhost:8085/mcp)")
+		c.Flags().StringVar(&botChannel, "channel-id", "", "Discord channel ID to poll (default: DISCORD_CHANNEL_ID from host/.env)")
+		c.Flags().StringVar(&botUserID, "bot-user-id", "", "Discord bot user ID to ignore (default: DISCORD_BOT_USER_ID from host/.env)")
+		c.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD from host/.env)")
+		c.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
+		c.Flags().DurationVar(&botInterval, "interval", 30*time.Second, "Polling interval for bot run")
+	}
+	botRootCmd.AddCommand(botRunCmd, botRunOnceCmd)
+
+	rootCmd.AddCommand(assignCmd, startCmd, stopCmd, restartCmd, kaikoCmd, authCmd, toolCmd, botRootCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -682,6 +720,89 @@ func determineCommand(metaLLMCmd, overrideCmd string) string {
 		return overrideCmd
 	}
 	return metaLLMCmd
+}
+
+func runBot(cmd *cobra.Command, once bool) error {
+	envFileValues := loadNonEmptyEnvFileValues(".env")
+	getenv := func(key string) string {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+		return envFileValues[key]
+	}
+	opts, err := resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, getenv)
+	if err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	client := bot.NewMCPClient(opts.MCPURL, http.DefaultClient)
+	adapter := bot.NewDiscordAdapter(client, opts.ChannelID, opts.BotUserID)
+	store := bot.NewStateStore(opts.StatePath)
+	dispatcher := bot.NewDispatcher(store, bot.ShellCommandRunner{
+		Command: opts.DispatchCommand,
+		Dir:     ".",
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+	}, os.Stdout)
+	poller := bot.NewPoller(adapter, store, os.Stdout)
+	poller.SetDispatcher(dispatcher)
+
+	if once {
+		_, err := poller.RunOnce(ctx)
+		return err
+	}
+	fmt.Printf("Starting bot poller: mcp=%s channel=%s interval=%s state=%s\n", opts.MCPURL, opts.ChannelID, opts.Interval, opts.StatePath)
+	return poller.Run(ctx, opts.Interval)
+}
+
+type botOptions struct {
+	MCPURL          string
+	ChannelID       string
+	BotUserID       string
+	DispatchCommand string
+	StatePath       string
+	Interval        time.Duration
+}
+
+func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, getenv func(string) string) (botOptions, error) {
+	if mcpURL == "" {
+		mcpURL = getenv("DISCORD_MCP_URL")
+	}
+	if mcpURL == "" {
+		mcpURL = "http://localhost:8085/mcp"
+	}
+	if channelID == "" {
+		channelID = getenv("DISCORD_CHANNEL_ID")
+	}
+	if botUserID == "" {
+		botUserID = getenv("DISCORD_BOT_USER_ID")
+	}
+	if dispatchCmd == "" {
+		dispatchCmd = getenv("RENKIN_BOT_DISPATCH_CMD")
+	}
+	if statePath == "" {
+		statePath = bot.DefaultStatePath(".")
+	}
+	if interval <= 0 {
+		return botOptions{}, fmt.Errorf("bot interval must be positive")
+	}
+	if channelID == "" {
+		return botOptions{}, fmt.Errorf("bot channel ID is required; pass --channel-id or set DISCORD_CHANNEL_ID")
+	}
+	if dispatchCmd == "" {
+		return botOptions{}, fmt.Errorf("bot dispatch command is required; pass --cmd or set RENKIN_BOT_DISPATCH_CMD")
+	}
+	return botOptions{
+		MCPURL:          mcpURL,
+		ChannelID:       channelID,
+		BotUserID:       botUserID,
+		DispatchCommand: dispatchCmd,
+		StatePath:       statePath,
+		Interval:        interval,
+	}, nil
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
