@@ -118,9 +118,7 @@ func TestRuntimeConfigGenerationGemini(t *testing.T) {
 	assert.Contains(t, dockerfile, "if [ -f /renkin-conf/settings.json ]; then")
 	assert.Contains(t, dockerfile, "python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /renkin-conf/settings.json > /root/.gemini/settings.json")
 
-	// Test SkillFile placement
-	assert.Contains(t, dockerfile, "if [ -f /renkin-conf/GEMINI.md ]; then")
-	assert.Contains(t, dockerfile, "cp /renkin-conf/GEMINI.md /root/.gemini/GEMINI.md")
+	assert.NotContains(t, dockerfile, "cp /renkin-conf/GEMINI.md")
 }
 
 func TestDockerComposeGeneration(t *testing.T) {

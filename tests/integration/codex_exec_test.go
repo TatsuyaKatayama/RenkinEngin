@@ -66,6 +66,7 @@ port = 1234
 	if out, err := assignCmd.CombinedOutput(); err != nil {
 		t.Fatalf("renkin assign failed: %v\n%s", err, string(out))
 	}
+	assert.FileExists(t, filepath.Join(targetDir, "workspace", "AGENTS.md"))
 
 	// Build and Start
 	buildCmd2 := exec.Command("docker", "compose", "build")
@@ -86,7 +87,7 @@ port = 1234
 	}()
 
 	// Verify installation
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "codex --version && test -f /root/.codex/config.toml")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "codex --version && test -f /root/.codex/config.toml && test -f /workspace/AGENTS.md")
 	execCmd.Dir = targetDir
 
 	output, err := execCmd.CombinedOutput()

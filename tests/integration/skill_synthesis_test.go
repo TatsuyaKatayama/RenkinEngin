@@ -12,7 +12,7 @@ import (
 func TestMultiToolSkillSynthesis(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "renkin-multi-skill-test")
 	defer os.RemoveAll(tmpDir)
-	
+
 	binPath := filepath.Join(tmpDir, "renkin")
 	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
 	buildCmd.Dir = "../../"
@@ -23,7 +23,7 @@ func TestMultiToolSkillSynthesis(t *testing.T) {
 	// Prepare presets
 	presetsDir := filepath.Join(tmpDir, "presets", "tools")
 	os.MkdirAll(presetsDir, 0755)
-	
+
 	tool1 := `[[tool]]
 name = "tool1"
 type = "shell"
@@ -69,13 +69,13 @@ preset = "tool2"
 	output, err := assignCmd.CombinedOutput()
 	assert.NoError(t, err, string(output))
 
-	// Verify synthesized skill file in .renkin/conf
-	skillFile := filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md")
+	// Verify synthesized skill file in workspace
+	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
 	assert.FileExists(t, skillFile)
 
 	content, err := os.ReadFile(skillFile)
 	assert.NoError(t, err)
-	
+
 	s := string(content)
 	assert.Contains(t, s, "## tool1 Instructions")
 	assert.Contains(t, s, "Instructions for tool1")
@@ -84,7 +84,7 @@ preset = "tool2"
 	// Verify metadata
 	metadataPath := filepath.Join(targetDir, ".renkin_metadata.toml")
 	assert.FileExists(t, metadataPath)
-	
+
 	// Just verify the file content for EnvKeys
 	metaContent, _ := os.ReadFile(metadataPath)
 	assert.Contains(t, string(metaContent), "GEMINI_API_KEY")
@@ -93,7 +93,7 @@ preset = "tool2"
 func TestSkillSynthesisWithoutBaseSkills(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "renkin-no-base-skill-test")
 	defer os.RemoveAll(tmpDir)
-	
+
 	binPath := filepath.Join(tmpDir, "renkin")
 	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
 	buildCmd.Dir = "../../"
@@ -104,7 +104,7 @@ func TestSkillSynthesisWithoutBaseSkills(t *testing.T) {
 	// Prepare presets
 	presetsDir := filepath.Join(tmpDir, "presets", "tools")
 	os.MkdirAll(presetsDir, 0755)
-	
+
 	tool1 := `[[tool]]
 name = "tool1"
 type = "shell"
@@ -140,22 +140,63 @@ preset = "tool1"
 	assert.NoError(t, err, string(output))
 
 	// Verify synthesized skill file exists and contains tool instructions
-	skillFile := filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md")
+	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
 	assert.FileExists(t, skillFile)
 
 	content, err := os.ReadFile(skillFile)
 	assert.NoError(t, err)
-	
+
 	s := string(content)
 	assert.Contains(t, s, "## tool1 Instructions")
 	assert.Contains(t, s, "Instructions for tool1")
 	assert.NotContains(t, s, "## Base Skills")
 }
 
+func TestCodexSkillSynthesisWritesAgentsToWorkspace(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "renkin-codex-skill-test")
+	defer os.RemoveAll(tmpDir)
+
+	binPath := filepath.Join(tmpDir, "renkin")
+	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
+	buildCmd.Dir = "../../"
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build renkin: %v", err)
+	}
+
+	fixtureDir := filepath.Join(tmpDir, "fixtures")
+	os.MkdirAll(fixtureDir, 0755)
+	os.WriteFile(filepath.Join(fixtureDir, "docker.conf"), []byte(`base_image = "ubuntu:24.04"`), 0644)
+	os.WriteFile(filepath.Join(fixtureDir, "llm.conf"), []byte(`cmd = "codex"`), 0644)
+	os.WriteFile(filepath.Join(fixtureDir, "tool_list.toml"), []byte(`[[tool]]
+name = "dummy"
+type = "shell"
+install = "RUN echo dummy"
+instructions = "Codex tool instructions"
+`), 0644)
+
+	targetDir := filepath.Join(tmpDir, "target")
+	assignCmd := exec.Command(binPath, "assign", targetDir,
+		"--docker", filepath.Join(fixtureDir, "docker.conf"),
+		"--llm", filepath.Join(fixtureDir, "llm.conf"),
+		"--tools", filepath.Join(fixtureDir, "tool_list.toml"),
+	)
+	assignCmd.Dir = tmpDir
+	output, err := assignCmd.CombinedOutput()
+	assert.NoError(t, err, string(output))
+
+	agentsPath := filepath.Join(targetDir, "workspace", "AGENTS.md")
+	assert.FileExists(t, agentsPath)
+	assert.NoFileExists(t, filepath.Join(targetDir, ".renkin", "conf", "AGENTS.md"))
+
+	content, err := os.ReadFile(agentsPath)
+	assert.NoError(t, err)
+	assert.Contains(t, string(content), "Codex tool instructions")
+}
+
 func TestEmptySkillSynthesis(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "renkin-empty-skill-test")
 	defer os.RemoveAll(tmpDir)
-	
+
 	binPath := filepath.Join(tmpDir, "renkin")
 	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
 	buildCmd.Dir = "../../"
@@ -191,7 +232,7 @@ install = "RUN echo dummy"
 	assert.NoError(t, err, string(output))
 
 	// Verify synthesized skill file exists even if empty
-	skillFile := filepath.Join(targetDir, ".renkin", "conf", "GEMINI.md")
+	skillFile := filepath.Join(targetDir, "workspace", "GEMINI.md")
 	assert.FileExists(t, skillFile)
 
 	content, err := os.ReadFile(skillFile)

@@ -85,9 +85,9 @@ home_mounts = [
 	}
 
 	// Verify GEMINI.md generation (agy uses GEMINI.md)
-	geminiMdPath := filepath.Join(tempDir, ".renkin", "conf", "GEMINI.md")
+	geminiMdPath := filepath.Join(tempDir, "workspace", "GEMINI.md")
 	if _, err := os.Stat(geminiMdPath); os.IsNotExist(err) {
-		t.Errorf("GEMINI.md was not generated in .renkin/conf for agy")
+		t.Errorf("GEMINI.md was not generated in workspace for agy")
 	}
 
 	// Verify Dockerfile contains placement logic referencing /renkin-conf
@@ -105,12 +105,8 @@ fi`
 		t.Errorf("Dockerfile does not contain the expected placement logic for mcp_config.json (referenced /renkin-conf)")
 	}
 
-	// Verify Skill file placement in Dockerfile
-	skillSnippet := `if [ -f /renkin-conf/GEMINI.md ]; then
-  cp /renkin-conf/GEMINI.md /root/.gemini/GEMINI.md
-fi`
-	if !strings.Contains(string(dockerfileContent), skillSnippet) {
-		t.Errorf("Dockerfile does not contain the expected skill file placement logic")
+	if strings.Contains(string(dockerfileContent), "cp /renkin-conf/GEMINI.md") {
+		t.Errorf("Dockerfile should not copy skill files from /renkin-conf")
 	}
 
 	// Verify docker-compose.yml contains home mount

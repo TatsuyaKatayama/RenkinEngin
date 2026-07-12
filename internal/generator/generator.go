@@ -229,17 +229,6 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 			script.WriteString(fmt.Sprintf("  python3 -c 'import os, sys; print(os.path.expandvars(sys.stdin.read()))' < /renkin-conf/%s > %s\n", rc.Source, rc.Target))
 			script.WriteString("fi\n")
 		}
-		// Also handle SkillFile if defined
-		skillName, _ := cfg.LLM.GetSkillFileName()
-		if skillName != "" {
-			script.WriteString(fmt.Sprintf("if [ -f /renkin-conf/%s ]; then\n", skillName))
-			// Skill files are best placed in the home directory or where the tool looks.
-			// For agy/gemini, we'll also symlink it to /workspace/ so it's active but the source is hidden.
-			// BUT if the user wants workspace clean, we should NOT symlink.
-			// Instead, we'll place it in the home dir.
-			script.WriteString(fmt.Sprintf("  cp /renkin-conf/%s /root/.gemini/%s\n", skillName, skillName))
-			script.WriteString("fi\n")
-		}
 	}
 	script.WriteString("\n")
 

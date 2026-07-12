@@ -411,10 +411,10 @@ Analyze the files in your workspace. Check if there are any new files or changes
 			aggregatedSkills.WriteString("\n")
 		}
 
-		if err := os.WriteFile(filepath.Join(renkinConfDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(workspaceDir, skillName), []byte(aggregatedSkills.String()), 0644); err != nil {
 			return err
 		}
-		fmt.Printf("Generated .renkin/conf/%s\n", skillName)
+		fmt.Printf("Generated workspace/%s\n", skillName)
 	}
 
 	// Save metadata

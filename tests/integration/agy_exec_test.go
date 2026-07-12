@@ -60,7 +60,7 @@ mcp_config_gemini = '"agy-mcp": {"command": "echo"}'
 	assert.NoError(t, err)
 	assert.Contains(t, string(dfContent), "renkin-generate-llm-config")
 	assert.Contains(t, string(dfContent), "/root/.gemini/config/mcp_config.json")
-	assert.Contains(t, string(dfContent), "/root/.gemini/GEMINI.md")
+	assert.NotContains(t, string(dfContent), "/root/.gemini/GEMINI.md")
 
 	composeContent, err := os.ReadFile(filepath.Join(targetDir, "docker-compose.yml"))
 	assert.NoError(t, err)
@@ -85,7 +85,7 @@ mcp_config_gemini = '"agy-mcp": {"command": "echo"}'
 	assert.NoError(t, err, string(startOut))
 	assert.Contains(t, string(startOut), "agy")
 
-	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "test -f /root/.gemini/config/mcp_config.json && grep -q 'agy-mcp' /root/.gemini/config/mcp_config.json && grep -q 'echo' /root/.gemini/config/mcp_config.json && test -f /root/.gemini/GEMINI.md")
+	execCmd := exec.Command("docker", "compose", "exec", "-T", "llm-agent", "bash", "-c", "test -f /root/.gemini/config/mcp_config.json && grep -q 'agy-mcp' /root/.gemini/config/mcp_config.json && grep -q 'echo' /root/.gemini/config/mcp_config.json && test -f /workspace/GEMINI.md")
 	execCmd.Dir = targetDir
 	out, err := execCmd.CombinedOutput()
 	assert.NoError(t, err, string(out))
