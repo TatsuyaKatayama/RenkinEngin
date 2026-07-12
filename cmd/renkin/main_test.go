@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -62,6 +63,40 @@ func TestMissingEnvKeysAcceptsGeneratedEnvFileValues(t *testing.T) {
 	)
 
 	assert.Equal(t, []string{"NATS_URL"}, missing)
+}
+
+func TestResolveBotOptions(t *testing.T) {
+	env := map[string]string{
+		"DISCORD_MCP_URL":         "http://mcp.example/mcp",
+		"DISCORD_CHANNEL_ID":      "channel-1",
+		"DISCORD_BOT_USER_ID":     "bot-1",
+		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
+	}
+	opts, err := resolveBotOptions("", "", "", "", "", time.Second, func(key string) string {
+		return env[key]
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "http://mcp.example/mcp", opts.MCPURL)
+	assert.Equal(t, "channel-1", opts.ChannelID)
+	assert.Equal(t, "bot-1", opts.BotUserID)
+	assert.Equal(t, "renkin start --cmd true", opts.DispatchCommand)
+	assert.Equal(t, ".renkin_bot_state.json", opts.StatePath)
+	assert.Equal(t, time.Second, opts.Interval)
+}
+
+func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
+	_, err := resolveBotOptions("", "", "", "", "", time.Second, func(string) string {
+		return ""
+	})
+
+	assert.ErrorContains(t, err, "bot channel ID is required")
+
+	_, err = resolveBotOptions("", "channel-1", "", "", "", time.Second, func(string) string {
+		return ""
+	})
+
+	assert.ErrorContains(t, err, "bot dispatch command is required")
 }
 
 func TestShouldRestartLoop(t *testing.T) {

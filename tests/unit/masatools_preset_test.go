@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/TatsuyaKatayama/RenkinEngin/internal/config"
@@ -95,7 +96,7 @@ func TestCodexBotLoopRequiresAuthForCodexCommand(t *testing.T) {
 	scriptPath := filepath.Join(t.TempDir(), "bot-loop.sh")
 	assert.NoError(t, os.WriteFile(scriptPath, []byte(rendered), 0755))
 
-	output, err := runShellScript(scriptPath)
+	output, err := runShellScriptWithEnv(scriptPath, withoutEnv(os.Environ(), "OPENAI_API_KEY"))
 	assert.Error(t, err)
 	assert.Contains(t, output, "Codex authentication is not configured in the container.")
 	assert.Contains(t, output, "renkin auth codex")
@@ -108,4 +109,23 @@ func runShellScript(path string) (string, error) {
 	cmd := exec.Command("bash", path)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
+}
+
+func runShellScriptWithEnv(path string, env []string) (string, error) {
+	cmd := exec.Command("bash", path)
+	cmd.Env = env
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+func withoutEnv(env []string, key string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(env))
+	for _, item := range env {
+		if strings.HasPrefix(item, prefix) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
