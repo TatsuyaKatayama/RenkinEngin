@@ -13,6 +13,9 @@ func TestDockerExecForgejoMCPPreset(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	if os.Getenv("GITHUB_ACTIONS") != "true" {
+		t.Skip("skipping Forgejo MCP Docker integration test outside GitHub Actions CI")
+	}
 
 	tmpDir, _ := os.MkdirTemp("", "renkin-forgejo-mcp-test")
 	defer os.RemoveAll(tmpDir)

@@ -14,6 +14,9 @@ func TestDockerExecMultiTool(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	if os.Getenv("GITHUB_ACTIONS") != "true" {
+		t.Skip("skipping multi-tool Docker integration test outside GitHub Actions CI")
+	}
 
 	tmpDir, _ := os.MkdirTemp("", "renkin-multi-test")
 	defer os.RemoveAll(tmpDir)
