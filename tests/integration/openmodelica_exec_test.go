@@ -13,8 +13,8 @@ func TestDockerExecOpenModelicaHelp(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	if os.Getenv("CI") == "" {
-		t.Skip("skipping OpenModelica Docker integration test outside CI")
+	if os.Getenv("GITHUB_ACTIONS") != "true" {
+		t.Skip("skipping OpenModelica Docker integration test outside GitHub Actions CI")
 	}
 
 	tmpDir, _ := os.MkdirTemp("", "renkin-om-test")
