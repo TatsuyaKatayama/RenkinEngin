@@ -94,6 +94,12 @@ const dockerComposeTemplate = `services:
       - {{.}}
 {{- end}}
 {{- end}}
+{{- if .Mounts}}
+    volumes:
+{{- range .Mounts}}
+      - {{.Host}}:{{.Container}}
+{{- end}}
+{{- end}}
 {{- if .HealthPath}}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:{{.Port}}{{.HealthPath}}"]

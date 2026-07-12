@@ -27,9 +27,15 @@ https://github.com/TatsuyaKatayama/discord-mcp.git.
 
 The Discord token is held only by the `discord-mcp` compose service. Agent
 containers connect to `http://discord-mcp:8085/mcp` through the compose network.
+The shared agent workspace is mounted at `/workspace` so file tools can send
+artifacts produced by the agent.
 The host-side Bot Server should use `DISCORD_MCP_URL`, defaulting to
 `http://localhost:8085/mcp`.
 
 Agents must reply to the original Discord message when completing work so the
 Bot Server can confirm resolution through `message_reference`.
 """
+
+[[tool.mount]]
+host = "./workspace"
+container = "/workspace"

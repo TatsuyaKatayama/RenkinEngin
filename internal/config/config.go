@@ -61,6 +61,7 @@ type Tool struct {
 	BuildContext    string   `toml:"build_context"`
 	Port            int      `toml:"port"`
 	HealthPath      string   `toml:"health_path"`
+	Mounts          []Mount  `toml:"mount"`
 	Environment     []string `toml:"environment"`
 }
 
@@ -190,6 +191,7 @@ func hasToolOverrides(t Tool) bool {
 		t.BuildContext != "" ||
 		t.Port != 0 ||
 		t.HealthPath != "" ||
+		len(t.Mounts) > 0 ||
 		len(t.Environment) > 0
 }
 
@@ -389,6 +391,7 @@ func applyToolOverrides(pt *Tool, t Tool) {
 	if t.HealthPath != "" {
 		pt.HealthPath = t.HealthPath
 	}
+	pt.Mounts = append(pt.Mounts, t.Mounts...)
 	pt.Environment = append(pt.Environment, t.Environment...)
 }
 
