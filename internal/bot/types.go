@@ -25,10 +25,12 @@ const (
 
 type DispatchRecord struct {
 	BoardItemID  string        `json:"board_item_id"`
+	BoardItem    BoardItem     `json:"board_item"`
 	Attempt      int           `json:"attempt"`
 	MaxRetries   int           `json:"max_retries"`
 	RestartDelay time.Duration `json:"restart_delay"`
 	Deadline     time.Time     `json:"deadline,omitempty"`
+	NextRunAt    time.Time     `json:"next_run_at,omitempty"`
 	State        DispatchState `json:"state"`
 }
 

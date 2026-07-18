@@ -6,26 +6,65 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type recordingRunner struct {
-	items []BoardItem
+	items    []BoardItem
+	commands []*fakeRunningCommand
 }
 
-func (r *recordingRunner) Run(_ context.Context, item BoardItem) error {
+func (r *recordingRunner) Start(_ context.Context, item BoardItem) (RunningCommand, error) {
 	r.items = append(r.items, item)
+	cmd := newFakeRunningCommand()
+	r.commands = append(r.commands, cmd)
+	return cmd, nil
+}
+
+type fakeRunningCommand struct {
+	done   chan error
+	killed bool
+}
+
+func newFakeRunningCommand() *fakeRunningCommand {
+	return &fakeRunningCommand{done: make(chan error, 1)}
+}
+
+func (c *fakeRunningCommand) Done() <-chan error {
+	return c.done
+}
+
+func (c *fakeRunningCommand) Kill() error {
+	c.killed = true
+	c.done <- context.DeadlineExceeded
 	return nil
+}
+
+func (c *fakeRunningCommand) finish(err error) {
+	c.done <- err
+}
+
+type fakeResolver struct {
+	resolved bool
+}
+
+func (r *fakeResolver) IsResolved(_ context.Context, _ BoardItem) (bool, error) {
+	return r.resolved, nil
 }
 
 func TestDispatcherTransitionsPendingInFlightConfirmed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), DefaultStateFileName)
 	store := NewStateStore(path)
 	runner := &recordingRunner{}
+	resolver := &fakeResolver{}
 	var log bytes.Buffer
-	dispatcher := NewDispatcher(store, runner, &log)
+	now := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+	dispatcher := NewDispatcher(store, runner, &log, WithResolutionChecker(resolver), WithDispatchPolicy(3, time.Second, time.Minute), WithClock(func() time.Time {
+		return now
+	}))
 
 	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101", ChannelID: "c1"}})
 
@@ -33,10 +72,18 @@ func TestDispatcherTransitionsPendingInFlightConfirmed(t *testing.T) {
 	require.NotNil(t, state.Dispatch)
 	assert.Equal(t, "101", state.Dispatch.BoardItemID)
 	assert.Equal(t, 1, state.Dispatch.Attempt)
-	assert.Equal(t, DispatchStateConfirmed, state.Dispatch.State)
+	assert.Equal(t, DispatchStateInFlight, state.Dispatch.State)
 	require.Len(t, runner.items, 1)
 	assert.Equal(t, "101", runner.items[0].ID)
 	assert.Contains(t, log.String(), "dispatch started: board_item_id=101")
+
+	resolver.resolved = true
+	runner.commands[0].finish(nil)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Dispatch)
+	assert.Equal(t, DispatchStateConfirmed, state.Dispatch.State)
 	assert.Contains(t, log.String(), "dispatch confirmed: board_item_id=101")
 
 	saved, err := store.Load()
@@ -50,23 +97,69 @@ func TestDispatcherSkipsNewItemsWhenDispatchActive(t *testing.T) {
 	store := NewStateStore(path)
 	runner := &recordingRunner{}
 	var log bytes.Buffer
-	dispatcher := NewDispatcher(store, runner, &log)
-	state := State{
-		Dispatch: &DispatchRecord{
-			BoardItemID: "100",
-			State:       DispatchStateInFlight,
-		},
-	}
+	dispatcher := NewDispatcher(store, runner, &log, WithResolutionChecker(&fakeResolver{}))
+	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "100"}})
+	require.NoError(t, err)
 
 	next, err := dispatcher.DispatchNewItems(context.Background(), state, []BoardItem{{ID: "101"}})
 
 	require.NoError(t, err)
 	assert.Equal(t, state.Dispatch, next.Dispatch)
-	assert.Empty(t, runner.items)
+	assert.Len(t, runner.items, 1)
 	assert.Contains(t, log.String(), "dispatch already active")
 }
 
-func TestPollerRunOnceDispatchesDetectedItemAndPersistsConfirmedState(t *testing.T) {
+func TestDispatcherRetriesThenExhaustsWhenUnresolved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultStateFileName)
+	store := NewStateStore(path)
+	runner := &recordingRunner{}
+	var log bytes.Buffer
+	now := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+	dispatcher := NewDispatcher(store, runner, &log, WithResolutionChecker(&fakeResolver{}), WithDispatchPolicy(2, time.Second, time.Minute), WithClock(func() time.Time {
+		return now
+	}))
+
+	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
+	require.NoError(t, err)
+	runner.commands[0].finish(nil)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+	require.NoError(t, err)
+	assert.Equal(t, DispatchStatePending, state.Dispatch.State)
+	assert.Equal(t, 1, state.Dispatch.Attempt)
+
+	now = now.Add(time.Second)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+	require.NoError(t, err)
+	assert.Equal(t, DispatchStateInFlight, state.Dispatch.State)
+	assert.Equal(t, 2, state.Dispatch.Attempt)
+
+	runner.commands[1].finish(nil)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+	require.NoError(t, err)
+	assert.Equal(t, DispatchStateExhausted, state.Dispatch.State)
+	assert.Contains(t, log.String(), "dispatch exhausted: board_item_id=101 attempts=2")
+}
+
+func TestDispatcherKillsProcessAtDeadline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultStateFileName)
+	store := NewStateStore(path)
+	runner := &recordingRunner{}
+	now := time.Date(2026, 7, 18, 12, 0, 0, 0, time.UTC)
+	dispatcher := NewDispatcher(store, runner, nil, WithResolutionChecker(&fakeResolver{}), WithDispatchPolicy(1, 0, time.Second), WithClock(func() time.Time {
+		return now
+	}))
+
+	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
+	require.NoError(t, err)
+	now = now.Add(time.Second)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+
+	require.NoError(t, err)
+	assert.True(t, runner.commands[0].killed)
+	assert.Equal(t, DispatchStateExhausted, state.Dispatch.State)
+}
+
+func TestPollerRunOnceDispatchesDetectedItemAndPersistsInFlightState(t *testing.T) {
 	path := filepath.Join(t.TempDir(), DefaultStateFileName)
 	store := NewStateStore(path)
 	adapter := &fakeBoardAdapter{
@@ -90,7 +183,7 @@ func TestPollerRunOnceDispatchesDetectedItemAndPersistsConfirmedState(t *testing
 	assert.Equal(t, "101", state.Checkpoint.LastMessageID)
 	require.NotNil(t, state.Dispatch)
 	assert.Equal(t, "101", state.Dispatch.BoardItemID)
-	assert.Equal(t, DispatchStateConfirmed, state.Dispatch.State)
+	assert.Equal(t, DispatchStateInFlight, state.Dispatch.State)
 }
 
 func TestShellCommandRunnerExecutesCommand(t *testing.T) {
@@ -101,9 +194,10 @@ func TestShellCommandRunnerExecutesCommand(t *testing.T) {
 		Dir:     dir,
 	}
 
-	err := runner.Run(context.Background(), BoardItem{ID: "101", ChannelID: "c1", AuthorID: "u1"})
+	cmd, err := runner.Start(context.Background(), BoardItem{ID: "101", ChannelID: "c1", AuthorID: "u1"})
 
 	require.NoError(t, err)
+	require.NoError(t, <-cmd.Done())
 	data, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
 	assert.Equal(t, "101:c1:u1", string(data))
