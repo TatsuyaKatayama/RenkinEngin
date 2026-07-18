@@ -1,10 +1,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDetermineCommand(t *testing.T) {
@@ -73,11 +76,12 @@ func TestResolveBotOptions(t *testing.T) {
 		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
 		"RENKIN_BOT_WEBHOOK_URL":  "http://webhook.example",
 	}
-	opts, err := resolveBotOptions("", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", func(key string) string {
+	opts, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", func(key string) string {
 		return env[key]
 	})
 
 	assert.NoError(t, err)
+	assert.Equal(t, "discord", opts.Board)
 	assert.Equal(t, "http://mcp.example/mcp", opts.MCPURL)
 	assert.Equal(t, "channel-1", opts.ChannelID)
 	assert.Equal(t, "bot-1", opts.BotUserID)
@@ -91,21 +95,44 @@ func TestResolveBotOptions(t *testing.T) {
 }
 
 func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
-	_, err := resolveBotOptions("", "", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+	_, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
 		return ""
 	})
 
 	assert.ErrorContains(t, err, "bot channel ID is required")
 
-	_, err = resolveBotOptions("", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+	_, err = resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
 		return ""
 	})
 
 	assert.ErrorContains(t, err, "bot dispatch command is required")
 }
 
+func TestResolveBotOptionsRejectsUnsupportedBoard(t *testing.T) {
+	_, err := resolveBotOptions("masabbs", "", "", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+		return ""
+	})
+
+	assert.ErrorContains(t, err, `unsupported bot board "masabbs"`)
+}
+
+func TestResolveBotOptionsDefaultsDispatchCommandFromBotLoop(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Chdir(tempDir)
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, ".renkin", "conf"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, ".renkin", "conf", "bot-loop.sh"), []byte("#!/bin/bash\n"), 0755))
+
+	opts, err := resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+		return ""
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "docker compose exec -T llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'", opts.DispatchCommand)
+}
+
 func TestBotRunArgs(t *testing.T) {
 	args := botRunArgs(botOptions{
+		Board:           "discord",
 		MCPURL:          "http://localhost:8085/mcp",
 		ChannelID:       "c1",
 		BotUserID:       "bot1",
@@ -120,6 +147,7 @@ func TestBotRunArgs(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"bot", "run",
+		"--board", "discord",
 		"--mcp-url", "http://localhost:8085/mcp",
 		"--channel-id", "c1",
 		"--bot-user-id", "bot1",
