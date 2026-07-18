@@ -41,6 +41,7 @@ var (
 	botPIDFile  string
 	botLogFile  string
 	botWebhook  string
+	botBoard    string
 )
 
 func main() {
@@ -114,25 +115,25 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 
 	var botRootCmd = &cobra.Command{
 		Use:   "bot",
-		Short: "Run the Go-side Discord polling bot",
+		Short: "Run the Go-side board polling bot",
 	}
 	var botRunCmd = &cobra.Command{
 		Use:   "run",
-		Short: "Poll Discord through MCP and dispatch matching work in the foreground",
+		Short: "Poll a board through MCP and dispatch matching work in the foreground",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBot(cmd, false)
 		},
 	}
 	var botRunOnceCmd = &cobra.Command{
 		Use:   "run-once",
-		Short: "Run one Discord poll cycle and dispatch at most one item",
+		Short: "Run one board poll cycle and dispatch at most one item",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBot(cmd, true)
 		},
 	}
 	var botStartCmd = &cobra.Command{
 		Use:   "start",
-		Short: "Start the Go-side Discord polling bot in the background",
+		Short: "Start the Go-side board polling bot in the background",
 		RunE:  runBotStart,
 	}
 	var botStopCmd = &cobra.Command{
@@ -749,7 +750,8 @@ func addBotRunFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&botMCPURL, "mcp-url", "", "Discord MCP endpoint URL (default: DISCORD_MCP_URL from host/.env or http://localhost:8085/mcp)")
 	cmd.Flags().StringVar(&botChannel, "channel-id", "", "Discord channel ID to poll (default: DISCORD_CHANNEL_ID from host/.env)")
 	cmd.Flags().StringVar(&botUserID, "bot-user-id", "", "Discord bot user ID to ignore (default: DISCORD_BOT_USER_ID from host/.env)")
-	cmd.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD from host/.env)")
+	cmd.Flags().StringVar(&botBoard, "board", "discord", "Board adapter to use (currently: discord)")
+	cmd.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD; for --board discord, .renkin/conf/bot-loop.sh is used when present)")
 	cmd.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
 	cmd.Flags().DurationVar(&botInterval, "interval", 30*time.Second, "Polling interval for bot run")
 	cmd.Flags().IntVar(&botRetries, "max-retries", bot.DefaultDispatchMaxRetries, "Maximum dispatch attempts before exhausted")
@@ -767,8 +769,10 @@ func runBot(cmd *cobra.Command, once bool) error {
 	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client := bot.NewMCPClient(opts.MCPURL, http.DefaultClient)
-	adapter := bot.NewDiscordAdapter(client, opts.ChannelID, opts.BotUserID)
+	adapter, err := newBoardAdapter(opts)
+	if err != nil {
+		return err
+	}
 	store := bot.NewStateStore(opts.StatePath)
 	dispatcherOptions := []bot.DispatcherOption{
 		bot.WithResolutionChecker(adapter),
@@ -790,8 +794,23 @@ func runBot(cmd *cobra.Command, once bool) error {
 		_, err := poller.RunOnce(ctx)
 		return err
 	}
-	fmt.Printf("Starting bot poller: mcp=%s channel=%s interval=%s state=%s\n", opts.MCPURL, opts.ChannelID, opts.Interval, opts.StatePath)
+	fmt.Printf("Starting bot poller: board=%s mcp=%s channel=%s interval=%s state=%s\n", opts.Board, opts.MCPURL, opts.ChannelID, opts.Interval, opts.StatePath)
 	return poller.Run(ctx, opts.Interval)
+}
+
+type dispatchBoardAdapter interface {
+	bot.BoardAdapter
+	bot.ResolutionChecker
+}
+
+func newBoardAdapter(opts botOptions) (dispatchBoardAdapter, error) {
+	switch opts.Board {
+	case "discord":
+		client := bot.NewMCPClient(opts.MCPURL, http.DefaultClient)
+		return bot.NewDiscordAdapter(client, opts.ChannelID, opts.BotUserID), nil
+	default:
+		return nil, fmt.Errorf("unsupported bot board %q; supported boards: discord", opts.Board)
+	}
 }
 
 func runBotStart(cmd *cobra.Command, args []string) error {
@@ -810,6 +829,12 @@ func runBotStart(cmd *cobra.Command, args []string) error {
 	}
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return fmt.Errorf("create bot log dir: %w", err)
+	}
+	if _, err := os.Stat("docker-compose.yml"); err == nil {
+		fmt.Println("Starting compose services...")
+		if err := docker.ComposeUp(); err != nil {
+			return err
+		}
 	}
 
 	exe, err := os.Executable()
@@ -896,10 +921,11 @@ func currentBotOptions() (botOptions, error) {
 		}
 		return envFileValues[key]
 	}
-	return resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, getenv)
+	return resolveBotOptions(botBoard, botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, getenv)
 }
 
 type botOptions struct {
+	Board           string
 	MCPURL          string
 	ChannelID       string
 	BotUserID       string
@@ -915,6 +941,7 @@ type botOptions struct {
 func botRunArgs(opts botOptions) []string {
 	return []string{
 		"bot", "run",
+		"--board", opts.Board,
 		"--mcp-url", opts.MCPURL,
 		"--channel-id", opts.ChannelID,
 		"--bot-user-id", opts.BotUserID,
@@ -968,7 +995,13 @@ func printableStatusValue(value string) string {
 	return value
 }
 
-func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, getenv func(string) string) (botOptions, error) {
+func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, getenv func(string) string) (botOptions, error) {
+	if board == "" {
+		board = "discord"
+	}
+	if board != "discord" {
+		return botOptions{}, fmt.Errorf("unsupported bot board %q; supported boards: discord", board)
+	}
 	if mcpURL == "" {
 		mcpURL = getenv("DISCORD_MCP_URL")
 	}
@@ -983,6 +1016,9 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 	}
 	if dispatchCmd == "" {
 		dispatchCmd = getenv("RENKIN_BOT_DISPATCH_CMD")
+	}
+	if dispatchCmd == "" && board == "discord" {
+		dispatchCmd = defaultBotDispatchCommand(".")
 	}
 	if webhookURL == "" {
 		webhookURL = getenv("RENKIN_BOT_WEBHOOK_URL")
@@ -1009,6 +1045,7 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 		return botOptions{}, fmt.Errorf("bot dispatch command is required; pass --cmd or set RENKIN_BOT_DISPATCH_CMD")
 	}
 	return botOptions{
+		Board:           board,
 		MCPURL:          mcpURL,
 		ChannelID:       channelID,
 		BotUserID:       botUserID,
@@ -1020,6 +1057,14 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 		Deadline:        deadline,
 		WebhookURL:      webhookURL,
 	}, nil
+}
+
+func defaultBotDispatchCommand(dir string) string {
+	loopScriptPath := filepath.Join(dir, ".renkin", "conf", "bot-loop.sh")
+	if _, err := os.Stat(loopScriptPath); err != nil {
+		return ""
+	}
+	return "docker compose exec -T llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'"
 }
 
 func runStop(cmd *cobra.Command, args []string) error {

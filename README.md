@@ -73,6 +73,78 @@ renkin start --loop "python3 bot.py"
 renkin start --loop work.sh --cmd "bash"  # デバッグ用にシェルを最優先起動
 ```
 
+#### Bot Server（Go 側監視 / Discord adapter）
+`renkin bot` は、LLM を常時起動せずに Go 側プロセスが掲示板を監視し、新着メッセージが来た時だけエージェント起動コマンドを dispatch します。現在の board adapter は `discord` です。
+
+構成上、Discord API へ直接接続するのは `discord-mcp` コンテナだけです。Go 側 Bot Server は `discord-mcp` の HTTP MCP endpoint に対して `read_messages` tool を呼びます。そのため `DISCORD_TOKEN` / `DISCORD_GUILD_ID` は `discord-mcp` service 用、Go 側は `DISCORD_MCP_URL` / `DISCORD_CHANNEL_ID` を使います。
+
+まず Discord MCP 付きで環境を作ります。
+
+```bash
+renkin assign ./ --llm codex --tools discord-mcp
+```
+
+`.env` に Discord 接続情報を設定します。
+
+```bash
+DISCORD_TOKEN=your-discord-bot-token
+DISCORD_GUILD_ID=your-guild-id
+DISCORD_CHANNEL_ID=your-channel-id
+DISCORD_MCP_URL=http://localhost:8085/mcp
+DISCORD_BOT_USER_ID=your-bot-user-id
+```
+
+`DISCORD_BOT_USER_ID` は自分の投稿を新着検知から除外するための値です。未設定でも Discord の `author.bot` が true の投稿は除外されますが、可能なら明示してください。
+
+`RENKIN_BOT_DISPATCH_CMD` は通常不要です。`.renkin/conf/bot-loop.sh` がある場合、Bot Server は次の dispatch command を自動で使います。
+
+```bash
+docker compose exec -T llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'
+```
+
+Bot Server を起動します。`renkin bot start` は通常の `renkin start` と同じく、先に `docker compose up -d` で compose services を起動します。`--board discord` は現時点の既定ですが、他の掲示板 adapter と区別できるよう明示しておくのを推奨します。
+
+```bash
+renkin bot start --board discord
+```
+
+状態確認と停止:
+
+```bash
+renkin bot status
+renkin bot stop
+```
+
+前景で動作確認する場合:
+
+```bash
+# 1回だけ poll して、検知したら dispatch する
+renkin bot run-once --board discord
+
+# 前景で継続 poll
+renkin bot run --board discord --interval 30s
+```
+
+主なオプション:
+
+```bash
+renkin bot start \
+  --board discord \
+  --interval 30s \
+  --max-retries 3 \
+  --restart-delay 5s \
+  --deadline 30m \
+  --webhook-url https://example.com/webhook
+```
+
+- `--state`: 状態ファイルのパス。既定は `.renkin_bot_state.json`
+- `--board`: 掲示板 adapter。現在は `discord` のみ対応
+- `--pid-file`: `bot start/stop/status` 用 PID file。既定は `.renkin/bot.pid`
+- `--log-file`: `bot start` のログ出力先。既定は `.renkin/logs/bot.log`
+- `--webhook-url`: `exhausted` 発生時の通知先。未指定時は `RENKIN_BOT_WEBHOOK_URL` を参照
+
+Dispatch は `pending -> in_flight -> confirmed/exhausted` で管理されます。エージェントは完了時に、元 Discord メッセージへの reply として投稿してください。Bot Server は `message_reference.message_id` を見て解決済み判定します。reply が見つからないままコマンド終了または deadline 到達になると retry し、`max-retries` 到達で `exhausted` になります。
+
 ### 4. 労働停止・環境の再起動・解雇
 ```bash
 # 労働停止（コンテナとボリュームの削除）
@@ -92,6 +164,7 @@ renkin kaiko
 - `codex`: Codex CLI (Node.js v24)
 
 ### 解析ツール
+- `discord-mcp`: Discord 連携用 MCP server。Go 側 Bot Server と LLM エージェントの両方が同じ HTTP MCP service を使います。
 - `forgejo-mcp`: Codex CLI / Gemini CLI 向け Forgejo MCP server
 - `git`: Git CLI（`GIT_USER_NAME`, `GIT_USER_EMAIL` をコンテナへ継承）
 - `masabbs-mcp`: Codex CLI / Gemini CLI 向け masabbs 組織・議論レビュー MCP server。preset は GitHub から取得後に `npm ci`、`npm run build`、`npm install -g .` を実行し、生成された MCP 設定は `masabbs-mcp` コマンドを直接起動します。
