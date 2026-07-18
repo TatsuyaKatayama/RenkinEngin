@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -118,6 +120,13 @@ type discordMessage struct {
 
 func decodeDiscordMessages(raw json.RawMessage) ([]discordMessage, error) {
 	raw = unwrapMCPToolResult(raw)
+	if text, ok := rawJSONString(raw); ok {
+		if json.Valid([]byte(text)) {
+			return decodeDiscordMessages(json.RawMessage(text))
+		}
+		return parseDiscordMessagesText(text), nil
+	}
+
 	var messages []discordMessage
 	if err := json.Unmarshal(raw, &messages); err == nil {
 		return messages, nil
@@ -143,6 +152,35 @@ func decodeDiscordMessages(raw json.RawMessage) ([]discordMessage, error) {
 	}
 }
 
+func rawJSONString(raw json.RawMessage) (string, bool) {
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return "", false
+	}
+	return text, true
+}
+
+var discordTextMessagePattern = regexp.MustCompile("(?s)- \\(ID: ([0-9]+)\\) \\*\\*\\[([^\\]]+)\\]\\*\\* `([^`]+)`: ```(.*?)```")
+
+func parseDiscordMessagesText(text string) []discordMessage {
+	matches := discordTextMessagePattern.FindAllStringSubmatch(text, -1)
+	messages := make([]discordMessage, 0, len(matches))
+	for _, match := range matches {
+		var createdAt time.Time
+		if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(match[3])); err == nil {
+			createdAt = parsed
+		}
+		msg := discordMessage{
+			ID:        match[1],
+			Content:   strings.TrimSpace(match[4]),
+			CreatedAt: createdAt,
+		}
+		msg.Author.ID = strings.TrimSpace(match[2])
+		messages = append(messages, msg)
+	}
+	return messages
+}
+
 func unwrapMCPToolResult(raw json.RawMessage) json.RawMessage {
 	var result struct {
 		StructuredContent json.RawMessage `json:"structuredContent"`
@@ -160,6 +198,11 @@ func unwrapMCPToolResult(raw json.RawMessage) json.RawMessage {
 	for _, content := range result.Content {
 		if content.Type == "text" && json.Valid([]byte(content.Text)) {
 			return json.RawMessage(content.Text)
+		}
+		if content.Type == "text" {
+			if encoded, err := json.Marshal(content.Text); err == nil {
+				return encoded
+			}
 		}
 	}
 	return raw

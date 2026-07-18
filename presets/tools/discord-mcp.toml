@@ -43,6 +43,11 @@ last checked inbound message ID persisted in the environment or state file.
 Use `read_new_messages` for this checkpointed flow; use the underlying
 `read_messages` semantics only to fetch messages after the stored inbound
 message ID when a manual cursor is needed.
+When `RENKIN_BOARD_ITEM_ID` is present, the Go-side Bot Server already selected
+one board item for this loop. In that mode, process only that item using
+`RENKIN_BOARD_ITEM_ID`, `RENKIN_BOARD_CHANNEL_ID`, `RENKIN_BOARD_AUTHOR_ID`, and
+`RENKIN_BOARD_CONTENT`; do not call `read_new_messages` to discover additional
+work.
 Resolve your own Discord user ID with `get_user_id_by_name`, then respond only
 to messages that mention you. Match the sender's language, prefix every reply
 with `<@sender_id>`, and send the reply with `send_message`.
@@ -50,6 +55,11 @@ Do not reply to your own messages or to messages that do not mention you. After
 processing inbound messages, persist the newest inbound message ID as checked.
 Do not use the message ID of the last message you sent as the next read
 checkpoint.
+Never print or send environment variables that may contain secrets, including
+`DISCORD_TOKEN`, API keys, access tokens, passwords, and webhook URLs.
+Do not attach files by default. Use `send_file` or `reply_file` only when the
+user explicitly asks for a file, report, artifact, log, archive, image, or other
+attachment. Normal answers must be plain text messages.
 
 Agents must reply to the original Discord message when completing work so the
 Bot Server can confirm resolution through `message_reference`.

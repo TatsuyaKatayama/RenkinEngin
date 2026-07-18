@@ -44,4 +44,5 @@ func TestPollerRunOnceLogsItemsAndPersistsCheckpoint(t *testing.T) {
 	state, err := store.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "101", state.Checkpoint.LastMessageID)
+	assert.False(t, state.Checkpoint.LastCheckedAt.IsZero())
 }

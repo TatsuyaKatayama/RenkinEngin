@@ -1,14 +1,27 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/TatsuyaKatayama/RenkinEngin/internal/bot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeStartupBoardAdapter struct {
+	gotCheckpoint bot.Checkpoint
+	items         []bot.BoardItem
+	next          bot.Checkpoint
+}
+
+func (f *fakeStartupBoardAdapter) PollSince(_ context.Context, cp bot.Checkpoint) ([]bot.BoardItem, bot.Checkpoint, error) {
+	f.gotCheckpoint = cp
+	return f.items, f.next, nil
+}
 
 func TestDetermineCommand(t *testing.T) {
 	tests := []struct {
@@ -76,7 +89,7 @@ func TestResolveBotOptions(t *testing.T) {
 		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
 		"RENKIN_BOT_WEBHOOK_URL":  "http://webhook.example",
 	}
-	opts, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", func(key string) string {
+	opts, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", true, func(key string) string {
 		return env[key]
 	})
 
@@ -92,16 +105,17 @@ func TestResolveBotOptions(t *testing.T) {
 	assert.Equal(t, 3*time.Second, opts.RestartDelay)
 	assert.Equal(t, 4*time.Second, opts.Deadline)
 	assert.Equal(t, "http://webhook.example", opts.WebhookURL)
+	assert.True(t, opts.CheckpointOnStart)
 }
 
 func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
-	_, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+	_, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
 	assert.ErrorContains(t, err, "bot channel ID is required")
 
-	_, err = resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+	_, err = resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
@@ -109,7 +123,7 @@ func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
 }
 
 func TestResolveBotOptionsRejectsUnsupportedBoard(t *testing.T) {
-	_, err := resolveBotOptions("masabbs", "", "", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+	_, err := resolveBotOptions("masabbs", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
@@ -122,27 +136,28 @@ func TestResolveBotOptionsDefaultsDispatchCommandFromBotLoop(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, ".renkin", "conf"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, ".renkin", "conf", "bot-loop.sh"), []byte("#!/bin/bash\n"), 0755))
 
-	opts, err := resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
+	opts, err := resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "docker compose exec -T llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'", opts.DispatchCommand)
+	assert.Equal(t, "docker compose exec -T -e RENKIN_BOARD_ITEM_ID -e RENKIN_BOARD_CHANNEL_ID -e RENKIN_BOARD_AUTHOR_ID -e RENKIN_BOARD_CONTENT -e RENKIN_BOARD_CREATED_AT llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'", opts.DispatchCommand)
 }
 
 func TestBotRunArgs(t *testing.T) {
 	args := botRunArgs(botOptions{
-		Board:           "discord",
-		MCPURL:          "http://localhost:8085/mcp",
-		ChannelID:       "c1",
-		BotUserID:       "bot1",
-		DispatchCommand: "renkin start --cmd true",
-		StatePath:       "state.json",
-		Interval:        2 * time.Second,
-		MaxRetries:      3,
-		RestartDelay:    4 * time.Second,
-		Deadline:        5 * time.Second,
-		WebhookURL:      "http://webhook.example",
+		Board:             "discord",
+		MCPURL:            "http://localhost:8085/mcp",
+		ChannelID:         "c1",
+		BotUserID:         "bot1",
+		DispatchCommand:   "renkin start --cmd true",
+		StatePath:         "state.json",
+		Interval:          2 * time.Second,
+		MaxRetries:        3,
+		RestartDelay:      4 * time.Second,
+		Deadline:          5 * time.Second,
+		WebhookURL:        "http://webhook.example",
+		CheckpointOnStart: true,
 	})
 
 	assert.Equal(t, []string{
@@ -158,7 +173,31 @@ func TestBotRunArgs(t *testing.T) {
 		"--restart-delay", "4s",
 		"--deadline", "5s",
 		"--webhook-url", "http://webhook.example",
+		"--checkpoint-on-start", "true",
 	}, args)
+}
+
+func TestRecordStartupCheckpointSkipsExistingItemsWithoutDispatch(t *testing.T) {
+	path := filepath.Join(t.TempDir(), bot.DefaultStateFileName)
+	store := bot.NewStateStore(path)
+	require.NoError(t, store.Save(bot.State{Checkpoint: bot.Checkpoint{LastMessageID: "100"}}))
+	adapter := &fakeStartupBoardAdapter{
+		items: []bot.BoardItem{
+			{ID: "101", ChannelID: "c1", AuthorID: "u1"},
+			{ID: "105", ChannelID: "c1", AuthorID: "u2"},
+		},
+		next: bot.Checkpoint{LastMessageID: "105"},
+	}
+
+	err := recordStartupCheckpoint(context.Background(), adapter, store)
+
+	require.NoError(t, err)
+	assert.Equal(t, bot.Checkpoint{LastMessageID: "100"}, adapter.gotCheckpoint)
+	state, err := store.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "105", state.Checkpoint.LastMessageID)
+	assert.False(t, state.Checkpoint.LastCheckedAt.IsZero())
+	assert.Nil(t, state.Dispatch)
 }
 
 func TestDefaultBotPaths(t *testing.T) {

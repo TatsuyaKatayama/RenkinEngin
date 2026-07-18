@@ -168,6 +168,13 @@ func (d *Dispatcher) advanceActiveDispatch(ctx context.Context, state State) (St
 		d.active = nil
 		if err != nil {
 			fmt.Fprintf(d.log, "dispatch command exited with error: board_item_id=%s error=%v\n", state.Dispatch.BoardItemID, err)
+		} else {
+			state.Dispatch.State = DispatchStateConfirmed
+			if err := d.save(state); err != nil {
+				return state, err
+			}
+			fmt.Fprintf(d.log, "dispatch confirmed: board_item_id=%s\n", state.Dispatch.BoardItemID)
+			return state, nil
 		}
 		if resolved, err := d.isResolved(ctx, state.Dispatch.BoardItem); err != nil {
 			return state, err
@@ -297,6 +304,8 @@ func (r ShellCommandRunner) Start(ctx context.Context, item BoardItem) (RunningC
 		"RENKIN_BOARD_ITEM_ID="+item.ID,
 		"RENKIN_BOARD_CHANNEL_ID="+item.ChannelID,
 		"RENKIN_BOARD_AUTHOR_ID="+item.AuthorID,
+		"RENKIN_BOARD_CONTENT="+item.Content,
+		"RENKIN_BOARD_CREATED_AT="+item.CreatedAt.Format(time.RFC3339Nano),
 	)
 	if err := cmd.Start(); err != nil {
 		return nil, err

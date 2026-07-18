@@ -61,6 +61,7 @@ func (p *Poller) RunOnce(ctx context.Context) ([]BoardItem, error) {
 	if err != nil {
 		return nil, err
 	}
+	next.LastCheckedAt = time.Now().UTC()
 	for _, item := range items {
 		fmt.Fprintf(p.log, "new board item: id=%s channel=%s author=%s\n", item.ID, item.ChannelID, item.AuthorID)
 	}
