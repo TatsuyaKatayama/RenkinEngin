@@ -101,6 +101,7 @@ func TestDiscordMCPPresetDockerCompose(t *testing.T) {
 		return
 	}
 	llmAgentBlock := compose[:serviceIndex]
+	assert.NotContains(t, llmAgentBlock, "env_file: .env")
 	assert.NotContains(t, llmAgentBlock, "DISCORD_TOKEN")
 	assert.NotContains(t, llmAgentBlock, "DISCORD_GUILD_ID")
 	assert.NotContains(t, llmAgentBlock, "DISCORD_CHANNEL_ID")

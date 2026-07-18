@@ -46,7 +46,6 @@ const dockerComposeTemplate = `services:
     tty: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file: .env
 {{- if or .DefaultEnv .EnvKeys}}
     environment:
 {{- range .DefaultEnv}}

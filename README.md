@@ -76,7 +76,7 @@ renkin start --loop work.sh --cmd "bash"  # デバッグ用にシェルを最優
 #### Bot Server（Go 側監視 / Discord adapter）
 `renkin bot` は、LLM を常時起動せずに Go 側プロセスが掲示板を監視し、新着メッセージが来た時だけエージェント起動コマンドを dispatch します。現在の board adapter は `discord` です。
 
-構成上、Discord API へ直接接続するのは `discord-mcp` コンテナだけです。Go 側 Bot Server は `discord-mcp` の HTTP MCP endpoint に対して `read_messages` tool を呼びます。そのため `DISCORD_TOKEN` / `DISCORD_GUILD_ID` は `discord-mcp` service 用、Go 側は `DISCORD_MCP_URL` / `DISCORD_CHANNEL_ID` を使います。
+構成上、Discord API へ直接接続するのは `discord-mcp` コンテナだけです。Go 側 Bot Server は `discord-mcp` の HTTP MCP endpoint に対して `read_messages` tool を呼びます。そのため `DISCORD_TOKEN` / `DISCORD_GUILD_ID` は `discord-mcp` service 用、Go 側は `DISCORD_MCP_URL` / `DISCORD_CHANNEL_ID` を使います。`llm-agent` には `.env` 全体を渡さず、必要な環境変数だけを compose の `environment` で渡します。
 
 まず Discord MCP 付きで環境を作ります。
 
@@ -96,6 +96,8 @@ DISCORD_BOT_USERNAME=your-bot-username
 ```
 
 `DISCORD_BOT_USER_ID` / `DISCORD_BOT_USERNAME` は自分の投稿を新着検知から除外するための値です。`discord-mcp` が formatted text だけを返す場合は username で除外します。
+
+`DISCORD_TOKEN` がログや agent 出力に出た場合は、Discord Developer Portal で bot token を reset し、`.env` の `DISCORD_TOKEN` を更新してから `docker compose up -d --force-recreate discord-mcp` を実行してください。生成される compose では token は `discord-mcp` service だけに渡します。
 
 `RENKIN_BOT_DISPATCH_CMD` は通常不要です。`.renkin/conf/bot-loop.sh` がある場合、Bot Server は次の dispatch command を自動で使います。
 
