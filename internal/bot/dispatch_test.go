@@ -55,6 +55,16 @@ func (r *fakeResolver) IsResolved(_ context.Context, _ BoardItem) (bool, error) 
 	return r.resolved, nil
 }
 
+type recordingNotifier struct {
+	records []DispatchRecord
+	err     error
+}
+
+func (n *recordingNotifier) NotifyExhausted(_ context.Context, record DispatchRecord) error {
+	n.records = append(n.records, record)
+	return n.err
+}
+
 func TestDispatcherTransitionsPendingInFlightConfirmed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), DefaultStateFileName)
 	store := NewStateStore(path)
@@ -138,6 +148,42 @@ func TestDispatcherRetriesThenExhaustsWhenUnresolved(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, DispatchStateExhausted, state.Dispatch.State)
 	assert.Contains(t, log.String(), "dispatch exhausted: board_item_id=101 attempts=2")
+}
+
+func TestDispatcherNotifiesWhenExhausted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultStateFileName)
+	store := NewStateStore(path)
+	runner := &recordingRunner{}
+	notifier := &recordingNotifier{}
+	dispatcher := NewDispatcher(store, runner, nil, WithResolutionChecker(&fakeResolver{}), WithDispatchPolicy(1, 0, time.Minute), WithExhaustedNotifier(notifier))
+
+	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
+	require.NoError(t, err)
+	runner.commands[0].finish(nil)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, DispatchStateExhausted, state.Dispatch.State)
+	require.Len(t, notifier.records, 1)
+	assert.Equal(t, "101", notifier.records[0].BoardItemID)
+}
+
+func TestDispatcherIgnoresExhaustedNotificationFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultStateFileName)
+	store := NewStateStore(path)
+	runner := &recordingRunner{}
+	notifier := &recordingNotifier{err: assert.AnError}
+	var log bytes.Buffer
+	dispatcher := NewDispatcher(store, runner, &log, WithResolutionChecker(&fakeResolver{}), WithDispatchPolicy(1, 0, time.Minute), WithExhaustedNotifier(notifier))
+
+	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
+	require.NoError(t, err)
+	runner.commands[0].finish(nil)
+	state, err = dispatcher.Tick(context.Background(), state, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, DispatchStateExhausted, state.Dispatch.State)
+	assert.Contains(t, log.String(), "dispatch exhausted notification failed")
 }
 
 func TestDispatcherKillsProcessAtDeadline(t *testing.T) {
