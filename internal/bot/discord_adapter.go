@@ -16,9 +16,10 @@ type ToolCaller interface {
 }
 
 type DiscordAdapter struct {
-	caller    ToolCaller
-	channelID string
-	botUserID string
+	caller      ToolCaller
+	channelID   string
+	botUserID   string
+	botUsername string
 }
 
 func NewDiscordAdapter(caller ToolCaller, channelID string, botUserID string) *DiscordAdapter {
@@ -27,6 +28,10 @@ func NewDiscordAdapter(caller ToolCaller, channelID string, botUserID string) *D
 		channelID: channelID,
 		botUserID: botUserID,
 	}
+}
+
+func (a *DiscordAdapter) SetBotUsername(username string) {
+	a.botUsername = username
 }
 
 func (a *DiscordAdapter) PollSince(ctx context.Context, cp Checkpoint) ([]BoardItem, Checkpoint, error) {
@@ -50,11 +55,14 @@ func (a *DiscordAdapter) PollSince(ctx context.Context, cp Checkpoint) ([]BoardI
 	items := make([]BoardItem, 0, len(messages))
 	next := cp
 	for _, msg := range messages {
-		if msg.ID == "" || a.isOwnBotMessage(msg) {
+		if msg.ID == "" {
 			continue
 		}
 		if compareSnowflake(msg.ID, next.LastMessageID) > 0 {
 			next.LastMessageID = msg.ID
+		}
+		if a.isOwnBotMessage(msg) {
+			continue
 		}
 		items = append(items, BoardItem{
 			ID:        msg.ID,
@@ -99,6 +107,9 @@ func (a *DiscordAdapter) IsResolved(ctx context.Context, item BoardItem) (bool, 
 
 func (a *DiscordAdapter) isOwnBotMessage(msg discordMessage) bool {
 	if a.botUserID != "" && msg.Author.ID == a.botUserID {
+		return true
+	}
+	if a.botUsername != "" && msg.Author.ID == a.botUsername {
 		return true
 	}
 	return msg.Author.Bot

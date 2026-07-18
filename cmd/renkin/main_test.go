@@ -86,10 +86,11 @@ func TestResolveBotOptions(t *testing.T) {
 		"DISCORD_MCP_URL":         "http://mcp.example/mcp",
 		"DISCORD_CHANNEL_ID":      "channel-1",
 		"DISCORD_BOT_USER_ID":     "bot-1",
+		"DISCORD_BOT_USERNAME":    "bot-name",
 		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
 		"RENKIN_BOT_WEBHOOK_URL":  "http://webhook.example",
 	}
-	opts, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", true, func(key string) string {
+	opts, err := resolveBotOptions("discord", "", "", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", true, func(key string) string {
 		return env[key]
 	})
 
@@ -98,6 +99,7 @@ func TestResolveBotOptions(t *testing.T) {
 	assert.Equal(t, "http://mcp.example/mcp", opts.MCPURL)
 	assert.Equal(t, "channel-1", opts.ChannelID)
 	assert.Equal(t, "bot-1", opts.BotUserID)
+	assert.Equal(t, "bot-name", opts.BotUsername)
 	assert.Equal(t, "renkin start --cmd true", opts.DispatchCommand)
 	assert.Equal(t, ".renkin_bot_state.json", opts.StatePath)
 	assert.Equal(t, time.Second, opts.Interval)
@@ -109,13 +111,13 @@ func TestResolveBotOptions(t *testing.T) {
 }
 
 func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
-	_, err := resolveBotOptions("discord", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
+	_, err := resolveBotOptions("discord", "", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
 	assert.ErrorContains(t, err, "bot channel ID is required")
 
-	_, err = resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
+	_, err = resolveBotOptions("discord", "", "channel-1", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
@@ -123,7 +125,7 @@ func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
 }
 
 func TestResolveBotOptionsRejectsUnsupportedBoard(t *testing.T) {
-	_, err := resolveBotOptions("masabbs", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
+	_, err := resolveBotOptions("masabbs", "", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
@@ -136,7 +138,7 @@ func TestResolveBotOptionsDefaultsDispatchCommandFromBotLoop(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, ".renkin", "conf"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, ".renkin", "conf", "bot-loop.sh"), []byte("#!/bin/bash\n"), 0755))
 
-	opts, err := resolveBotOptions("discord", "", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
+	opts, err := resolveBotOptions("discord", "", "channel-1", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
@@ -150,6 +152,7 @@ func TestBotRunArgs(t *testing.T) {
 		MCPURL:            "http://localhost:8085/mcp",
 		ChannelID:         "c1",
 		BotUserID:         "bot1",
+		BotUsername:       "bot-name",
 		DispatchCommand:   "renkin start --cmd true",
 		StatePath:         "state.json",
 		Interval:          2 * time.Second,
@@ -166,6 +169,7 @@ func TestBotRunArgs(t *testing.T) {
 		"--mcp-url", "http://localhost:8085/mcp",
 		"--channel-id", "c1",
 		"--bot-user-id", "bot1",
+		"--bot-username", "bot-name",
 		"--cmd", "renkin start --cmd true",
 		"--state", "state.json",
 		"--interval", "2s",

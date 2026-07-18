@@ -33,6 +33,7 @@ var (
 	botMCPURL            string
 	botChannel           string
 	botUserID            string
+	botUsername          string
 	botCmd               string
 	botState             string
 	botInterval          time.Duration
@@ -752,6 +753,7 @@ func addBotRunFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&botMCPURL, "mcp-url", "", "Discord MCP endpoint URL (default: DISCORD_MCP_URL from host/.env or http://localhost:8085/mcp)")
 	cmd.Flags().StringVar(&botChannel, "channel-id", "", "Discord channel ID to poll (default: DISCORD_CHANNEL_ID from host/.env)")
 	cmd.Flags().StringVar(&botUserID, "bot-user-id", "", "Discord bot user ID to ignore (default: DISCORD_BOT_USER_ID from host/.env)")
+	cmd.Flags().StringVar(&botUsername, "bot-username", "", "Discord bot username to ignore when only formatted text is available (default: DISCORD_BOT_USERNAME from host/.env)")
 	cmd.Flags().StringVar(&botBoard, "board", "discord", "Board adapter to use (currently: discord)")
 	cmd.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD; for --board discord, .renkin/conf/bot-loop.sh is used when present)")
 	cmd.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
@@ -833,7 +835,9 @@ func newBoardAdapter(opts botOptions) (dispatchBoardAdapter, error) {
 	switch opts.Board {
 	case "discord":
 		client := bot.NewMCPClient(opts.MCPURL, http.DefaultClient)
-		return bot.NewDiscordAdapter(client, opts.ChannelID, opts.BotUserID), nil
+		adapter := bot.NewDiscordAdapter(client, opts.ChannelID, opts.BotUserID)
+		adapter.SetBotUsername(opts.BotUsername)
+		return adapter, nil
 	default:
 		return nil, fmt.Errorf("unsupported bot board %q; supported boards: discord", opts.Board)
 	}
@@ -950,7 +954,7 @@ func currentBotOptions() (botOptions, error) {
 		}
 		return envFileValues[key]
 	}
-	return resolveBotOptions(botBoard, botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, botCheckpointOnStart, getenv)
+	return resolveBotOptions(botBoard, botMCPURL, botChannel, botUserID, botUsername, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, botCheckpointOnStart, getenv)
 }
 
 type botOptions struct {
@@ -958,6 +962,7 @@ type botOptions struct {
 	MCPURL            string
 	ChannelID         string
 	BotUserID         string
+	BotUsername       string
 	DispatchCommand   string
 	StatePath         string
 	Interval          time.Duration
@@ -975,6 +980,7 @@ func botRunArgs(opts botOptions) []string {
 		"--mcp-url", opts.MCPURL,
 		"--channel-id", opts.ChannelID,
 		"--bot-user-id", opts.BotUserID,
+		"--bot-username", opts.BotUsername,
 		"--cmd", opts.DispatchCommand,
 		"--state", opts.StatePath,
 		"--interval", opts.Interval.String(),
@@ -1026,7 +1032,7 @@ func printableStatusValue(value string) string {
 	return value
 }
 
-func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, checkpointOnStart bool, getenv func(string) string) (botOptions, error) {
+func resolveBotOptions(board, mcpURL, channelID, botUserID, botUsername, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, checkpointOnStart bool, getenv func(string) string) (botOptions, error) {
 	if board == "" {
 		board = "discord"
 	}
@@ -1044,6 +1050,9 @@ func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePa
 	}
 	if botUserID == "" {
 		botUserID = getenv("DISCORD_BOT_USER_ID")
+	}
+	if botUsername == "" {
+		botUsername = getenv("DISCORD_BOT_USERNAME")
 	}
 	if dispatchCmd == "" {
 		dispatchCmd = getenv("RENKIN_BOT_DISPATCH_CMD")
@@ -1080,6 +1089,7 @@ func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePa
 		MCPURL:            mcpURL,
 		ChannelID:         channelID,
 		BotUserID:         botUserID,
+		BotUsername:       botUsername,
 		DispatchCommand:   dispatchCmd,
 		StatePath:         statePath,
 		Interval:          interval,
