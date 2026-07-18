@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -37,6 +38,8 @@ var (
 	botRetries  int
 	botDelay    time.Duration
 	botDeadline time.Duration
+	botPIDFile  string
+	botLogFile  string
 )
 
 func main() {
@@ -126,18 +129,31 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 			return runBot(cmd, true)
 		},
 	}
-	for _, c := range []*cobra.Command{botRunCmd, botRunOnceCmd} {
-		c.Flags().StringVar(&botMCPURL, "mcp-url", "", "Discord MCP endpoint URL (default: DISCORD_MCP_URL from host/.env or http://localhost:8085/mcp)")
-		c.Flags().StringVar(&botChannel, "channel-id", "", "Discord channel ID to poll (default: DISCORD_CHANNEL_ID from host/.env)")
-		c.Flags().StringVar(&botUserID, "bot-user-id", "", "Discord bot user ID to ignore (default: DISCORD_BOT_USER_ID from host/.env)")
-		c.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD from host/.env)")
-		c.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
-		c.Flags().DurationVar(&botInterval, "interval", 30*time.Second, "Polling interval for bot run")
-		c.Flags().IntVar(&botRetries, "max-retries", bot.DefaultDispatchMaxRetries, "Maximum dispatch attempts before exhausted")
-		c.Flags().DurationVar(&botDelay, "restart-delay", bot.DefaultDispatchDelay, "Delay before retrying unresolved dispatches")
-		c.Flags().DurationVar(&botDeadline, "deadline", bot.DefaultDispatchTimeout, "Per-attempt dispatch deadline")
+	var botStartCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start the Go-side Discord polling bot in the background",
+		RunE:  runBotStart,
 	}
-	botRootCmd.AddCommand(botRunCmd, botRunOnceCmd)
+	var botStopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the background Discord polling bot",
+		RunE:  runBotStop,
+	}
+	var botStatusCmd = &cobra.Command{
+		Use:   "status",
+		Short: "Show the Discord polling bot status",
+		RunE:  runBotStatus,
+	}
+	for _, c := range []*cobra.Command{botRunCmd, botRunOnceCmd} {
+		addBotRunFlags(c)
+	}
+	addBotRunFlags(botStartCmd)
+	botStartCmd.Flags().StringVar(&botPIDFile, "pid-file", "", "Bot PID file path (default: .renkin/bot.pid)")
+	botStartCmd.Flags().StringVar(&botLogFile, "log-file", "", "Bot log file path (default: .renkin/logs/bot.log)")
+	botStopCmd.Flags().StringVar(&botPIDFile, "pid-file", "", "Bot PID file path (default: .renkin/bot.pid)")
+	botStatusCmd.Flags().StringVar(&botPIDFile, "pid-file", "", "Bot PID file path (default: .renkin/bot.pid)")
+	botStatusCmd.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
+	botRootCmd.AddCommand(botRunCmd, botRunOnceCmd, botStartCmd, botStopCmd, botStatusCmd)
 
 	rootCmd.AddCommand(assignCmd, startCmd, stopCmd, restartCmd, kaikoCmd, authCmd, toolCmd, botRootCmd)
 
@@ -728,15 +744,20 @@ func determineCommand(metaLLMCmd, overrideCmd string) string {
 	return metaLLMCmd
 }
 
+func addBotRunFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&botMCPURL, "mcp-url", "", "Discord MCP endpoint URL (default: DISCORD_MCP_URL from host/.env or http://localhost:8085/mcp)")
+	cmd.Flags().StringVar(&botChannel, "channel-id", "", "Discord channel ID to poll (default: DISCORD_CHANNEL_ID from host/.env)")
+	cmd.Flags().StringVar(&botUserID, "bot-user-id", "", "Discord bot user ID to ignore (default: DISCORD_BOT_USER_ID from host/.env)")
+	cmd.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD from host/.env)")
+	cmd.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
+	cmd.Flags().DurationVar(&botInterval, "interval", 30*time.Second, "Polling interval for bot run")
+	cmd.Flags().IntVar(&botRetries, "max-retries", bot.DefaultDispatchMaxRetries, "Maximum dispatch attempts before exhausted")
+	cmd.Flags().DurationVar(&botDelay, "restart-delay", bot.DefaultDispatchDelay, "Delay before retrying unresolved dispatches")
+	cmd.Flags().DurationVar(&botDeadline, "deadline", bot.DefaultDispatchTimeout, "Per-attempt dispatch deadline")
+}
+
 func runBot(cmd *cobra.Command, once bool) error {
-	envFileValues := loadNonEmptyEnvFileValues(".env")
-	getenv := func(key string) string {
-		if value := os.Getenv(key); value != "" {
-			return value
-		}
-		return envFileValues[key]
-	}
-	opts, err := resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, getenv)
+	opts, err := currentBotOptions()
 	if err != nil {
 		return err
 	}
@@ -764,6 +785,111 @@ func runBot(cmd *cobra.Command, once bool) error {
 	return poller.Run(ctx, opts.Interval)
 }
 
+func runBotStart(cmd *cobra.Command, args []string) error {
+	opts, err := currentBotOptions()
+	if err != nil {
+		return err
+	}
+	pidPath := defaultBotPIDPath(botPIDFile)
+	logPath := defaultBotLogPath(botLogFile)
+
+	if pid, ok := readLiveBotPID(pidPath); ok {
+		return fmt.Errorf("bot already running: pid=%d", pid)
+	}
+	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
+		return fmt.Errorf("create bot pid dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return fmt.Errorf("create bot log dir: %w", err)
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("open bot log: %w", err)
+	}
+	defer logFile.Close()
+
+	startCmd := exec.Command(exe, botRunArgs(opts)...)
+	startCmd.Stdout = logFile
+	startCmd.Stderr = logFile
+	startCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := startCmd.Start(); err != nil {
+		return fmt.Errorf("start bot: %w", err)
+	}
+	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", startCmd.Process.Pid)), 0644); err != nil {
+		_ = startCmd.Process.Kill()
+		return fmt.Errorf("write bot pid: %w", err)
+	}
+	fmt.Printf("Bot started: pid=%d\n", startCmd.Process.Pid)
+	fmt.Printf("PID file: %s\n", pidPath)
+	fmt.Printf("Log file: %s\n", logPath)
+	return startCmd.Process.Release()
+}
+
+func runBotStop(cmd *cobra.Command, args []string) error {
+	pidPath := defaultBotPIDPath(botPIDFile)
+	pid, ok := readLiveBotPID(pidPath)
+	if !ok {
+		_ = os.Remove(pidPath)
+		fmt.Println("Bot is not running.")
+		return nil
+	}
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("stop bot pid %d: %w", pid, err)
+	}
+	_ = os.Remove(pidPath)
+	fmt.Printf("Bot stopped: pid=%d\n", pid)
+	return nil
+}
+
+func runBotStatus(cmd *cobra.Command, args []string) error {
+	pidPath := defaultBotPIDPath(botPIDFile)
+	statePath := botState
+	if statePath == "" {
+		statePath = bot.DefaultStatePath(".")
+	}
+	pid, running := readLiveBotPID(pidPath)
+	if running {
+		fmt.Printf("Bot: running (pid=%d)\n", pid)
+	} else {
+		fmt.Println("Bot: stopped")
+	}
+	fmt.Printf("PID file: %s\n", pidPath)
+	fmt.Printf("State file: %s\n", statePath)
+
+	state, err := bot.NewStateStore(statePath).Load()
+	if err != nil {
+		fmt.Printf("State: unavailable (%v)\n", err)
+		return nil
+	}
+	fmt.Printf("Checkpoint: %s\n", printableStatusValue(state.Checkpoint.LastMessageID))
+	if state.Dispatch == nil {
+		fmt.Println("Dispatch: none")
+		return nil
+	}
+	record, err := json.MarshalIndent(state.Dispatch, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Dispatch: %s\n", record)
+	return nil
+}
+
+func currentBotOptions() (botOptions, error) {
+	envFileValues := loadNonEmptyEnvFileValues(".env")
+	getenv := func(key string) string {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+		return envFileValues[key]
+	}
+	return resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, getenv)
+}
+
 type botOptions struct {
 	MCPURL          string
 	ChannelID       string
@@ -774,6 +900,61 @@ type botOptions struct {
 	MaxRetries      int
 	RestartDelay    time.Duration
 	Deadline        time.Duration
+}
+
+func botRunArgs(opts botOptions) []string {
+	return []string{
+		"bot", "run",
+		"--mcp-url", opts.MCPURL,
+		"--channel-id", opts.ChannelID,
+		"--bot-user-id", opts.BotUserID,
+		"--cmd", opts.DispatchCommand,
+		"--state", opts.StatePath,
+		"--interval", opts.Interval.String(),
+		"--max-retries", fmt.Sprintf("%d", opts.MaxRetries),
+		"--restart-delay", opts.RestartDelay.String(),
+		"--deadline", opts.Deadline.String(),
+	}
+}
+
+func defaultBotPIDPath(path string) string {
+	if path != "" {
+		return path
+	}
+	return filepath.Join(".renkin", "bot.pid")
+}
+
+func defaultBotLogPath(path string) string {
+	if path != "" {
+		return path
+	}
+	return filepath.Join(".renkin", "logs", "bot.log")
+}
+
+func readLiveBotPID(path string) (int, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	pidText := strings.TrimSpace(string(data))
+	if pidText == "" {
+		return 0, false
+	}
+	var pid int
+	if _, err := fmt.Sscanf(pidText, "%d", &pid); err != nil || pid <= 0 {
+		return 0, false
+	}
+	if err := syscall.Kill(pid, 0); err != nil {
+		return 0, false
+	}
+	return pid, true
+}
+
+func printableStatusValue(value string) string {
+	if value == "" {
+		return "(none)"
+	}
+	return value
 }
 
 func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, getenv func(string) string) (botOptions, error) {

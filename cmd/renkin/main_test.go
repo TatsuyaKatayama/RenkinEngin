@@ -102,6 +102,40 @@ func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
 	assert.ErrorContains(t, err, "bot dispatch command is required")
 }
 
+func TestBotRunArgs(t *testing.T) {
+	args := botRunArgs(botOptions{
+		MCPURL:          "http://localhost:8085/mcp",
+		ChannelID:       "c1",
+		BotUserID:       "bot1",
+		DispatchCommand: "renkin start --cmd true",
+		StatePath:       "state.json",
+		Interval:        2 * time.Second,
+		MaxRetries:      3,
+		RestartDelay:    4 * time.Second,
+		Deadline:        5 * time.Second,
+	})
+
+	assert.Equal(t, []string{
+		"bot", "run",
+		"--mcp-url", "http://localhost:8085/mcp",
+		"--channel-id", "c1",
+		"--bot-user-id", "bot1",
+		"--cmd", "renkin start --cmd true",
+		"--state", "state.json",
+		"--interval", "2s",
+		"--max-retries", "3",
+		"--restart-delay", "4s",
+		"--deadline", "5s",
+	}, args)
+}
+
+func TestDefaultBotPaths(t *testing.T) {
+	assert.Equal(t, ".renkin/bot.pid", defaultBotPIDPath(""))
+	assert.Equal(t, "custom.pid", defaultBotPIDPath("custom.pid"))
+	assert.Equal(t, ".renkin/logs/bot.log", defaultBotLogPath(""))
+	assert.Equal(t, "custom.log", defaultBotLogPath("custom.log"))
+}
+
 func TestShouldRestartLoop(t *testing.T) {
 	tests := []struct {
 		name            string
