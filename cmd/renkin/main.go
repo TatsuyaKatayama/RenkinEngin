@@ -40,6 +40,7 @@ var (
 	botDeadline time.Duration
 	botPIDFile  string
 	botLogFile  string
+	botWebhook  string
 )
 
 func main() {
@@ -754,6 +755,7 @@ func addBotRunFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&botRetries, "max-retries", bot.DefaultDispatchMaxRetries, "Maximum dispatch attempts before exhausted")
 	cmd.Flags().DurationVar(&botDelay, "restart-delay", bot.DefaultDispatchDelay, "Delay before retrying unresolved dispatches")
 	cmd.Flags().DurationVar(&botDeadline, "deadline", bot.DefaultDispatchTimeout, "Per-attempt dispatch deadline")
+	cmd.Flags().StringVar(&botWebhook, "webhook-url", "", "Webhook URL for exhausted dispatch notifications (default: RENKIN_BOT_WEBHOOK_URL from host/.env)")
 }
 
 func runBot(cmd *cobra.Command, once bool) error {
@@ -768,12 +770,19 @@ func runBot(cmd *cobra.Command, once bool) error {
 	client := bot.NewMCPClient(opts.MCPURL, http.DefaultClient)
 	adapter := bot.NewDiscordAdapter(client, opts.ChannelID, opts.BotUserID)
 	store := bot.NewStateStore(opts.StatePath)
+	dispatcherOptions := []bot.DispatcherOption{
+		bot.WithResolutionChecker(adapter),
+		bot.WithDispatchPolicy(opts.MaxRetries, opts.RestartDelay, opts.Deadline),
+	}
+	if opts.WebhookURL != "" {
+		dispatcherOptions = append(dispatcherOptions, bot.WithExhaustedNotifier(bot.WebhookNotifier{URL: opts.WebhookURL, Client: http.DefaultClient}))
+	}
 	dispatcher := bot.NewDispatcher(store, bot.ShellCommandRunner{
 		Command: opts.DispatchCommand,
 		Dir:     ".",
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
-	}, os.Stdout, bot.WithResolutionChecker(adapter), bot.WithDispatchPolicy(opts.MaxRetries, opts.RestartDelay, opts.Deadline))
+	}, os.Stdout, dispatcherOptions...)
 	poller := bot.NewPoller(adapter, store, os.Stdout)
 	poller.SetDispatcher(dispatcher)
 
@@ -887,7 +896,7 @@ func currentBotOptions() (botOptions, error) {
 		}
 		return envFileValues[key]
 	}
-	return resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, getenv)
+	return resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, getenv)
 }
 
 type botOptions struct {
@@ -900,6 +909,7 @@ type botOptions struct {
 	MaxRetries      int
 	RestartDelay    time.Duration
 	Deadline        time.Duration
+	WebhookURL      string
 }
 
 func botRunArgs(opts botOptions) []string {
@@ -914,6 +924,7 @@ func botRunArgs(opts botOptions) []string {
 		"--max-retries", fmt.Sprintf("%d", opts.MaxRetries),
 		"--restart-delay", opts.RestartDelay.String(),
 		"--deadline", opts.Deadline.String(),
+		"--webhook-url", opts.WebhookURL,
 	}
 }
 
@@ -957,7 +968,7 @@ func printableStatusValue(value string) string {
 	return value
 }
 
-func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, getenv func(string) string) (botOptions, error) {
+func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, getenv func(string) string) (botOptions, error) {
 	if mcpURL == "" {
 		mcpURL = getenv("DISCORD_MCP_URL")
 	}
@@ -972,6 +983,9 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 	}
 	if dispatchCmd == "" {
 		dispatchCmd = getenv("RENKIN_BOT_DISPATCH_CMD")
+	}
+	if webhookURL == "" {
+		webhookURL = getenv("RENKIN_BOT_WEBHOOK_URL")
 	}
 	if statePath == "" {
 		statePath = bot.DefaultStatePath(".")
@@ -1004,6 +1018,7 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 		MaxRetries:      maxRetries,
 		RestartDelay:    restartDelay,
 		Deadline:        deadline,
+		WebhookURL:      webhookURL,
 	}, nil
 }
 

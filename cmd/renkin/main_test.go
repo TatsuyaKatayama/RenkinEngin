@@ -71,8 +71,9 @@ func TestResolveBotOptions(t *testing.T) {
 		"DISCORD_CHANNEL_ID":      "channel-1",
 		"DISCORD_BOT_USER_ID":     "bot-1",
 		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
+		"RENKIN_BOT_WEBHOOK_URL":  "http://webhook.example",
 	}
-	opts, err := resolveBotOptions("", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, func(key string) string {
+	opts, err := resolveBotOptions("", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, "", func(key string) string {
 		return env[key]
 	})
 
@@ -86,16 +87,17 @@ func TestResolveBotOptions(t *testing.T) {
 	assert.Equal(t, 2, opts.MaxRetries)
 	assert.Equal(t, 3*time.Second, opts.RestartDelay)
 	assert.Equal(t, 4*time.Second, opts.Deadline)
+	assert.Equal(t, "http://webhook.example", opts.WebhookURL)
 }
 
 func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
-	_, err := resolveBotOptions("", "", "", "", "", time.Second, 1, 0, time.Second, func(string) string {
+	_, err := resolveBotOptions("", "", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
 		return ""
 	})
 
 	assert.ErrorContains(t, err, "bot channel ID is required")
 
-	_, err = resolveBotOptions("", "channel-1", "", "", "", time.Second, 1, 0, time.Second, func(string) string {
+	_, err = resolveBotOptions("", "channel-1", "", "", "", time.Second, 1, 0, time.Second, "", func(string) string {
 		return ""
 	})
 
@@ -113,6 +115,7 @@ func TestBotRunArgs(t *testing.T) {
 		MaxRetries:      3,
 		RestartDelay:    4 * time.Second,
 		Deadline:        5 * time.Second,
+		WebhookURL:      "http://webhook.example",
 	})
 
 	assert.Equal(t, []string{
@@ -126,6 +129,7 @@ func TestBotRunArgs(t *testing.T) {
 		"--max-retries", "3",
 		"--restart-delay", "4s",
 		"--deadline", "5s",
+		"--webhook-url", "http://webhook.example",
 	}, args)
 }
 

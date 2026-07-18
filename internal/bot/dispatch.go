@@ -38,6 +38,7 @@ type Dispatcher struct {
 	dispatchTimeout time.Duration
 	now             func() time.Time
 	active          RunningCommand
+	notifier        ExhaustedNotifier
 }
 
 type DispatcherOption func(*Dispatcher)
@@ -90,6 +91,12 @@ func WithDispatchPolicy(maxRetries int, restartDelay, dispatchTimeout time.Durat
 func WithClock(now func() time.Time) DispatcherOption {
 	return func(d *Dispatcher) {
 		d.now = now
+	}
+}
+
+func WithExhaustedNotifier(notifier ExhaustedNotifier) DispatcherOption {
+	return func(d *Dispatcher) {
+		d.notifier = notifier
 	}
 }
 
@@ -151,7 +158,7 @@ func (d *Dispatcher) advanceActiveDispatch(ctx context.Context, state State) (St
 
 	if d.active == nil {
 		if state.Dispatch.State == DispatchStateInFlight {
-			return d.scheduleRetryOrExhaust(state)
+			return d.scheduleRetryOrExhaust(ctx, state)
 		}
 		return state, nil
 	}
@@ -172,7 +179,7 @@ func (d *Dispatcher) advanceActiveDispatch(ctx context.Context, state State) (St
 			fmt.Fprintf(d.log, "dispatch confirmed: board_item_id=%s\n", state.Dispatch.BoardItemID)
 			return state, nil
 		}
-		return d.scheduleRetryOrExhaust(state)
+		return d.scheduleRetryOrExhaust(ctx, state)
 	default:
 		if !state.Dispatch.Deadline.IsZero() && !d.now().Before(state.Dispatch.Deadline) {
 			if err := d.active.Kill(); err != nil {
@@ -180,7 +187,7 @@ func (d *Dispatcher) advanceActiveDispatch(ctx context.Context, state State) (St
 			}
 			d.active = nil
 			fmt.Fprintf(d.log, "dispatch deadline reached: board_item_id=%s\n", state.Dispatch.BoardItemID)
-			return d.scheduleRetryOrExhaust(state)
+			return d.scheduleRetryOrExhaust(ctx, state)
 		}
 		return state, nil
 	}
@@ -199,6 +206,7 @@ func (d *Dispatcher) startIfReady(ctx context.Context, state State) (State, erro
 			return state, err
 		}
 		fmt.Fprintf(d.log, "dispatch exhausted: board_item_id=%s attempts=%d\n", state.Dispatch.BoardItemID, state.Dispatch.Attempt)
+		d.notifyExhausted(ctx, *state.Dispatch)
 		return state, nil
 	}
 
@@ -220,7 +228,7 @@ func (d *Dispatcher) startIfReady(ctx context.Context, state State) (State, erro
 	return state, nil
 }
 
-func (d *Dispatcher) scheduleRetryOrExhaust(state State) (State, error) {
+func (d *Dispatcher) scheduleRetryOrExhaust(ctx context.Context, state State) (State, error) {
 	if state.Dispatch == nil {
 		return state, nil
 	}
@@ -230,6 +238,7 @@ func (d *Dispatcher) scheduleRetryOrExhaust(state State) (State, error) {
 			return state, err
 		}
 		fmt.Fprintf(d.log, "dispatch exhausted: board_item_id=%s attempts=%d\n", state.Dispatch.BoardItemID, state.Dispatch.Attempt)
+		d.notifyExhausted(ctx, *state.Dispatch)
 		return state, nil
 	}
 	state.Dispatch.State = DispatchStatePending
@@ -240,6 +249,15 @@ func (d *Dispatcher) scheduleRetryOrExhaust(state State) (State, error) {
 	}
 	fmt.Fprintf(d.log, "dispatch retry scheduled: board_item_id=%s next_attempt=%d\n", state.Dispatch.BoardItemID, state.Dispatch.Attempt+1)
 	return state, nil
+}
+
+func (d *Dispatcher) notifyExhausted(ctx context.Context, record DispatchRecord) {
+	if d.notifier == nil {
+		return
+	}
+	if err := d.notifier.NotifyExhausted(ctx, record); err != nil {
+		fmt.Fprintf(d.log, "dispatch exhausted notification failed: board_item_id=%s error=%v\n", record.BoardItemID, err)
+	}
 }
 
 func (d *Dispatcher) isResolved(ctx context.Context, item BoardItem) (bool, error) {
