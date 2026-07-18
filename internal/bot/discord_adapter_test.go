@@ -73,7 +73,7 @@ func TestDiscordAdapterPollSinceExcludesBotMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, "101", items[0].ID)
-	assert.Equal(t, "101", next.LastMessageID)
+	assert.Equal(t, "103", next.LastMessageID)
 }
 
 func TestDiscordAdapterPollSinceDecodesStructuredContent(t *testing.T) {
@@ -133,6 +133,23 @@ func TestDiscordAdapterPollSinceDecodesFormattedText(t *testing.T) {
 	assert.Equal(t, "hello", items[0].Content)
 	assert.Equal(t, "405", items[1].ID)
 	assert.Equal(t, "multi\nline", items[1].Content)
+	assert.Equal(t, "405", next.LastMessageID)
+}
+
+func TestDiscordAdapterPollSinceExcludesFormattedBotUsername(t *testing.T) {
+	text, err := json.Marshal("**Retrieved 2 messages:** \n- (ID: 401) **[alice]** `2026-07-18T05:03:04.167Z`: ```hello```\n- (ID: 405) **[bot_test]** `2026-07-18T05:04:04.167Z`: ```bot reply```")
+	require.NoError(t, err)
+	caller := &fakeToolCaller{
+		response: json.RawMessage(`{"content":[{"type":"text","text":` + string(text) + `}]}`),
+	}
+	adapter := NewDiscordAdapter(caller, "c1", "")
+	adapter.SetBotUsername("bot_test")
+
+	items, next, err := adapter.PollSince(context.Background(), Checkpoint{})
+
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "401", items[0].ID)
 	assert.Equal(t, "405", next.LastMessageID)
 }
 

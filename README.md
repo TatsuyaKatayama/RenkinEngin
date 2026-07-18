@@ -92,9 +92,10 @@ DISCORD_GUILD_ID=your-guild-id
 DISCORD_CHANNEL_ID=your-channel-id
 DISCORD_MCP_URL=http://localhost:8085/mcp
 DISCORD_BOT_USER_ID=your-bot-user-id
+DISCORD_BOT_USERNAME=your-bot-username
 ```
 
-`DISCORD_BOT_USER_ID` は自分の投稿を新着検知から除外するための値です。未設定でも Discord の `author.bot` が true の投稿は除外されますが、可能なら明示してください。
+`DISCORD_BOT_USER_ID` / `DISCORD_BOT_USERNAME` は自分の投稿を新着検知から除外するための値です。`discord-mcp` が formatted text だけを返す場合は username で除外します。
 
 `RENKIN_BOT_DISPATCH_CMD` は通常不要です。`.renkin/conf/bot-loop.sh` がある場合、Bot Server は次の dispatch command を自動で使います。
 
