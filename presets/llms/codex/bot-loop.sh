@@ -34,12 +34,13 @@ if [ "$llm_status" -ne 0 ]; then
   exit "$llm_status"
 fi
 
-final_json="$(python3 - "$RENKIN_LOOP_OUTPUT" <<'PY'
+parsed_json="$(python3 - "$RENKIN_LOOP_OUTPUT" <<'PY'
 import json
 import sys
 
 path = sys.argv[1]
 last = ""
+reply_tool_completed = False
 with open(path, "r", encoding="utf-8", errors="replace") as f:
     for line in f:
         text = line.strip()
@@ -49,9 +50,40 @@ with open(path, "r", encoding="utf-8", errors="replace") as f:
             data = json.loads(text)
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict) and "loop_status" in data:
+        if not isinstance(data, dict):
+            continue
+        item = data.get("item")
+        if isinstance(item, dict):
+            if (
+                item.get("type") == "mcp_tool_call"
+                and item.get("server") == "discord"
+                and item.get("tool") in {"send_message", "reply_message", "reply_file"}
+                and item.get("status") == "completed"
+                and item.get("error") is None
+            ):
+                reply_tool_completed = True
+            if item.get("type") == "agent_message":
+                for candidate in reversed(str(item.get("text", "")).splitlines()):
+                    candidate = candidate.strip()
+                    if not candidate:
+                        continue
+                    try:
+                        message = json.loads(candidate)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(message, dict) and "loop_status" in message:
+                        last = json.dumps(message, separators=(",", ":"))
+                        break
+        if "loop_status" in data:
             last = json.dumps(data, separators=(",", ":"))
-print(last)
+print(json.dumps({"final_json": last, "reply_tool_completed": reply_tool_completed}, separators=(",", ":")))
+PY
+)"
+
+final_json="$(python3 - "$parsed_json" <<'PY'
+import json
+import sys
+print(json.loads(sys.argv[1]).get("final_json", ""))
 PY
 )"
 
@@ -67,6 +99,17 @@ import sys
 print(json.loads(sys.argv[1]).get("loop_status", ""))
 PY
 )"
+reply_tool_completed="$(python3 - "$parsed_json" <<'PY'
+import json
+import sys
+print("true" if json.loads(sys.argv[1]).get("reply_tool_completed") else "false")
+PY
+)"
+
+if [ -n "${RENKIN_BOARD_ITEM_ID:-}" ] && [ "$loop_status" = "success" ] && [ "$reply_tool_completed" != "true" ]; then
+  echo "Renkin loop completed successfully but no Discord reply tool completed for board item ${RENKIN_BOARD_ITEM_ID}." >&2
+  exit 22
+fi
 
 case "$loop_status" in
   success|idle)

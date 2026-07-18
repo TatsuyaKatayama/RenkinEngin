@@ -119,7 +119,7 @@ func TestDispatcherSkipsNewItemsWhenDispatchActive(t *testing.T) {
 	assert.Contains(t, log.String(), "dispatch already active")
 }
 
-func TestDispatcherRetriesThenExhaustsWhenUnresolved(t *testing.T) {
+func TestDispatcherRetriesThenExhaustsWhenCommandFails(t *testing.T) {
 	path := filepath.Join(t.TempDir(), DefaultStateFileName)
 	store := NewStateStore(path)
 	runner := &recordingRunner{}
@@ -131,7 +131,7 @@ func TestDispatcherRetriesThenExhaustsWhenUnresolved(t *testing.T) {
 
 	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
 	require.NoError(t, err)
-	runner.commands[0].finish(nil)
+	runner.commands[0].finish(assert.AnError)
 	state, err = dispatcher.Tick(context.Background(), state, nil)
 	require.NoError(t, err)
 	assert.Equal(t, DispatchStatePending, state.Dispatch.State)
@@ -143,7 +143,7 @@ func TestDispatcherRetriesThenExhaustsWhenUnresolved(t *testing.T) {
 	assert.Equal(t, DispatchStateInFlight, state.Dispatch.State)
 	assert.Equal(t, 2, state.Dispatch.Attempt)
 
-	runner.commands[1].finish(nil)
+	runner.commands[1].finish(assert.AnError)
 	state, err = dispatcher.Tick(context.Background(), state, nil)
 	require.NoError(t, err)
 	assert.Equal(t, DispatchStateExhausted, state.Dispatch.State)
@@ -159,7 +159,7 @@ func TestDispatcherNotifiesWhenExhausted(t *testing.T) {
 
 	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
 	require.NoError(t, err)
-	runner.commands[0].finish(nil)
+	runner.commands[0].finish(assert.AnError)
 	state, err = dispatcher.Tick(context.Background(), state, nil)
 
 	require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestDispatcherIgnoresExhaustedNotificationFailure(t *testing.T) {
 
 	state, err := dispatcher.DispatchNewItems(context.Background(), State{}, []BoardItem{{ID: "101"}})
 	require.NoError(t, err)
-	runner.commands[0].finish(nil)
+	runner.commands[0].finish(assert.AnError)
 	state, err = dispatcher.Tick(context.Background(), state, nil)
 
 	require.NoError(t, err)
@@ -236,15 +236,16 @@ func TestShellCommandRunnerExecutesCommand(t *testing.T) {
 	dir := t.TempDir()
 	outputPath := filepath.Join(dir, "dispatch.txt")
 	runner := ShellCommandRunner{
-		Command: "printf '%s:%s:%s' \"$RENKIN_BOARD_ITEM_ID\" \"$RENKIN_BOARD_CHANNEL_ID\" \"$RENKIN_BOARD_AUTHOR_ID\" > dispatch.txt",
+		Command: "printf '%s:%s:%s:%s:%s' \"$RENKIN_BOARD_ITEM_ID\" \"$RENKIN_BOARD_CHANNEL_ID\" \"$RENKIN_BOARD_AUTHOR_ID\" \"$RENKIN_BOARD_CONTENT\" \"$RENKIN_BOARD_CREATED_AT\" > dispatch.txt",
 		Dir:     dir,
 	}
 
-	cmd, err := runner.Start(context.Background(), BoardItem{ID: "101", ChannelID: "c1", AuthorID: "u1"})
+	createdAt := time.Date(2026, 7, 18, 5, 45, 0, 0, time.UTC)
+	cmd, err := runner.Start(context.Background(), BoardItem{ID: "101", ChannelID: "c1", AuthorID: "u1", Content: "hello", CreatedAt: createdAt})
 
 	require.NoError(t, err)
 	require.NoError(t, <-cmd.Done())
 	data, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
-	assert.Equal(t, "101:c1:u1", string(data))
+	assert.Equal(t, "101:c1:u1:hello:2026-07-18T05:45:00Z", string(data))
 }

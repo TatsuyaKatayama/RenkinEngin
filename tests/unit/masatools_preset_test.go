@@ -83,6 +83,42 @@ func TestCodexBotLoopParsesFinalJsonContract(t *testing.T) {
 	assert.Contains(t, output, `Renkin loop final JSON: {"loop_status":"idle","reason":"no_task"}`)
 }
 
+func TestCodexBotLoopRequiresDiscordReplyToolForBoardSuccess(t *testing.T) {
+	loopTemplate, err := os.ReadFile("../../presets/llms/codex/bot-loop.sh")
+	assert.NoError(t, err)
+
+	rendered := config.RenderLoopTemplate(
+		string(loopTemplate),
+		&config.LLMConf{LoopCmd: `printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"{\"loop_status\":\"success\",\"reason\":\"task_completed\"}"}}'`},
+		"/tmp/renkin/codex-agent",
+	)
+
+	scriptPath := filepath.Join(t.TempDir(), "bot-loop.sh")
+	assert.NoError(t, os.WriteFile(scriptPath, []byte(rendered), 0755))
+
+	output, err := runShellScriptWithEnv(scriptPath, append(os.Environ(), "RENKIN_BOARD_ITEM_ID=101"))
+	assert.Error(t, err)
+	assert.Contains(t, output, "no Discord reply tool completed")
+}
+
+func TestCodexBotLoopAcceptsDiscordReplyToolForBoardSuccess(t *testing.T) {
+	loopTemplate, err := os.ReadFile("../../presets/llms/codex/bot-loop.sh")
+	assert.NoError(t, err)
+
+	rendered := config.RenderLoopTemplate(
+		string(loopTemplate),
+		&config.LLMConf{LoopCmd: `printf '%s\n' '{"type":"item.completed","item":{"type":"mcp_tool_call","server":"discord","tool":"send_message","status":"completed","error":null}}' '{"type":"item.completed","item":{"type":"agent_message","text":"{\"loop_status\":\"success\",\"reason\":\"task_completed\"}"}}'`},
+		"/tmp/renkin/codex-agent",
+	)
+
+	scriptPath := filepath.Join(t.TempDir(), "bot-loop.sh")
+	assert.NoError(t, os.WriteFile(scriptPath, []byte(rendered), 0755))
+
+	output, err := runShellScriptWithEnv(scriptPath, append(os.Environ(), "RENKIN_BOARD_ITEM_ID=101"))
+	assert.NoError(t, err, output)
+	assert.Contains(t, output, `Renkin loop final JSON: {"loop_status":"success","reason":"task_completed"}`)
+}
+
 func TestCodexBotLoopRequiresAuthForCodexCommand(t *testing.T) {
 	loopTemplate, err := os.ReadFile("../../presets/llms/codex/bot-loop.sh")
 	assert.NoError(t, err)

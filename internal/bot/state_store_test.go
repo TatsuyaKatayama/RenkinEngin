@@ -24,9 +24,10 @@ func TestStateStoreSaveAndLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), DefaultStateFileName)
 	store := NewStateStore(path)
 	deadline := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	lastCheckedAt := time.Date(2026, 7, 18, 5, 0, 0, 0, time.UTC)
 
 	expected := State{
-		Checkpoint: Checkpoint{LastMessageID: "123"},
+		Checkpoint: Checkpoint{LastMessageID: "123", LastCheckedAt: lastCheckedAt},
 		Dispatch: &DispatchRecord{
 			BoardItemID:  "123",
 			Attempt:      1,

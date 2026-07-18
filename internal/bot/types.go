@@ -3,7 +3,8 @@ package bot
 import "time"
 
 type Checkpoint struct {
-	LastMessageID string `json:"last_message_id"`
+	LastMessageID string    `json:"last_message_id"`
+	LastCheckedAt time.Time `json:"last_checked_at,omitempty"`
 }
 
 type BoardItem struct {

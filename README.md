@@ -99,7 +99,7 @@ DISCORD_BOT_USER_ID=your-bot-user-id
 `RENKIN_BOT_DISPATCH_CMD` は通常不要です。`.renkin/conf/bot-loop.sh` がある場合、Bot Server は次の dispatch command を自動で使います。
 
 ```bash
-docker compose exec -T llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'
+docker compose exec -T -e RENKIN_BOARD_ITEM_ID -e RENKIN_BOARD_CHANNEL_ID -e RENKIN_BOARD_AUTHOR_ID -e RENKIN_BOARD_CONTENT -e RENKIN_BOARD_CREATED_AT llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'
 ```
 
 Bot Server を起動します。`renkin bot start` は通常の `renkin start` と同じく、先に `docker compose up -d` で compose services を起動します。`--board discord` は現時点の既定ですが、他の掲示板 adapter と区別できるよう明示しておくのを推奨します。
@@ -139,9 +139,12 @@ renkin bot start \
 
 - `--state`: 状態ファイルのパス。既定は `.renkin_bot_state.json`
 - `--board`: 掲示板 adapter。現在は `discord` のみ対応
+- `--checkpoint-on-start`: 起動時に現在の最新位置を checkpoint として記録し、既存メッセージを dispatch しない
 - `--pid-file`: `bot start/stop/status` 用 PID file。既定は `.renkin/bot.pid`
 - `--log-file`: `bot start` のログ出力先。既定は `.renkin/logs/bot.log`
 - `--webhook-url`: `exhausted` 発生時の通知先。未指定時は `RENKIN_BOT_WEBHOOK_URL` を参照
+
+Bot Server は state file に `last_message_id` と `last_checked_at` を記録します。初回起動時に過去メッセージを処理したくない場合は `renkin bot start --board discord --checkpoint-on-start` を使ってください。
 
 Dispatch は `pending -> in_flight -> confirmed/exhausted` で管理されます。エージェントは完了時に、元 Discord メッセージへの reply として投稿してください。Bot Server は `message_reference.message_id` を見て解決済み判定します。reply が見つからないままコマンド終了または deadline 到達になると retry し、`max-retries` 到達で `exhausted` になります。
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,26 +23,27 @@ import (
 )
 
 var (
-	dockerPath  string
-	llmPath     string
-	toolsPath   []string
-	skillsPath  string
-	overrideCmd string
-	noConfig    bool
-	loopCmd     string
-	botMCPURL   string
-	botChannel  string
-	botUserID   string
-	botCmd      string
-	botState    string
-	botInterval time.Duration
-	botRetries  int
-	botDelay    time.Duration
-	botDeadline time.Duration
-	botPIDFile  string
-	botLogFile  string
-	botWebhook  string
-	botBoard    string
+	dockerPath           string
+	llmPath              string
+	toolsPath            []string
+	skillsPath           string
+	overrideCmd          string
+	noConfig             bool
+	loopCmd              string
+	botMCPURL            string
+	botChannel           string
+	botUserID            string
+	botCmd               string
+	botState             string
+	botInterval          time.Duration
+	botRetries           int
+	botDelay             time.Duration
+	botDeadline          time.Duration
+	botPIDFile           string
+	botLogFile           string
+	botWebhook           string
+	botBoard             string
+	botCheckpointOnStart bool
 )
 
 func main() {
@@ -758,6 +760,7 @@ func addBotRunFlags(cmd *cobra.Command) {
 	cmd.Flags().DurationVar(&botDelay, "restart-delay", bot.DefaultDispatchDelay, "Delay before retrying unresolved dispatches")
 	cmd.Flags().DurationVar(&botDeadline, "deadline", bot.DefaultDispatchTimeout, "Per-attempt dispatch deadline")
 	cmd.Flags().StringVar(&botWebhook, "webhook-url", "", "Webhook URL for exhausted dispatch notifications (default: RENKIN_BOT_WEBHOOK_URL from host/.env)")
+	cmd.Flags().BoolVar(&botCheckpointOnStart, "checkpoint-on-start", false, "Record the current board checkpoint at startup without dispatching existing items")
 }
 
 func runBot(cmd *cobra.Command, once bool) error {
@@ -774,6 +777,11 @@ func runBot(cmd *cobra.Command, once bool) error {
 		return err
 	}
 	store := bot.NewStateStore(opts.StatePath)
+	if opts.CheckpointOnStart {
+		if err := recordStartupCheckpoint(ctx, adapter, store); err != nil {
+			return err
+		}
+	}
 	dispatcherOptions := []bot.DispatcherOption{
 		bot.WithResolutionChecker(adapter),
 		bot.WithDispatchPolicy(opts.MaxRetries, opts.RestartDelay, opts.Deadline),
@@ -801,6 +809,24 @@ func runBot(cmd *cobra.Command, once bool) error {
 type dispatchBoardAdapter interface {
 	bot.BoardAdapter
 	bot.ResolutionChecker
+}
+
+func recordStartupCheckpoint(ctx context.Context, adapter bot.BoardAdapter, store *bot.StateStore) error {
+	state, err := store.Load()
+	if err != nil {
+		return err
+	}
+	items, next, err := adapter.PollSince(ctx, state.Checkpoint)
+	if err != nil {
+		return err
+	}
+	next.LastCheckedAt = time.Now().UTC()
+	state.Checkpoint = next
+	if err := store.Save(state); err != nil {
+		return err
+	}
+	fmt.Printf("Recorded startup checkpoint: last_message_id=%s skipped_items=%d\n", printableStatusValue(next.LastMessageID), len(items))
+	return nil
 }
 
 func newBoardAdapter(opts botOptions) (dispatchBoardAdapter, error) {
@@ -901,6 +927,9 @@ func runBotStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	fmt.Printf("Checkpoint: %s\n", printableStatusValue(state.Checkpoint.LastMessageID))
+	if !state.Checkpoint.LastCheckedAt.IsZero() {
+		fmt.Printf("Last checked at: %s\n", state.Checkpoint.LastCheckedAt.Format(time.RFC3339))
+	}
 	if state.Dispatch == nil {
 		fmt.Println("Dispatch: none")
 		return nil
@@ -921,21 +950,22 @@ func currentBotOptions() (botOptions, error) {
 		}
 		return envFileValues[key]
 	}
-	return resolveBotOptions(botBoard, botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, getenv)
+	return resolveBotOptions(botBoard, botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, botWebhook, botCheckpointOnStart, getenv)
 }
 
 type botOptions struct {
-	Board           string
-	MCPURL          string
-	ChannelID       string
-	BotUserID       string
-	DispatchCommand string
-	StatePath       string
-	Interval        time.Duration
-	MaxRetries      int
-	RestartDelay    time.Duration
-	Deadline        time.Duration
-	WebhookURL      string
+	Board             string
+	MCPURL            string
+	ChannelID         string
+	BotUserID         string
+	DispatchCommand   string
+	StatePath         string
+	Interval          time.Duration
+	MaxRetries        int
+	RestartDelay      time.Duration
+	Deadline          time.Duration
+	WebhookURL        string
+	CheckpointOnStart bool
 }
 
 func botRunArgs(opts botOptions) []string {
@@ -952,6 +982,7 @@ func botRunArgs(opts botOptions) []string {
 		"--restart-delay", opts.RestartDelay.String(),
 		"--deadline", opts.Deadline.String(),
 		"--webhook-url", opts.WebhookURL,
+		"--checkpoint-on-start", fmt.Sprintf("%t", opts.CheckpointOnStart),
 	}
 }
 
@@ -995,7 +1026,7 @@ func printableStatusValue(value string) string {
 	return value
 }
 
-func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, getenv func(string) string) (botOptions, error) {
+func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, checkpointOnStart bool, getenv func(string) string) (botOptions, error) {
 	if board == "" {
 		board = "discord"
 	}
@@ -1045,17 +1076,18 @@ func resolveBotOptions(board, mcpURL, channelID, botUserID, dispatchCmd, statePa
 		return botOptions{}, fmt.Errorf("bot dispatch command is required; pass --cmd or set RENKIN_BOT_DISPATCH_CMD")
 	}
 	return botOptions{
-		Board:           board,
-		MCPURL:          mcpURL,
-		ChannelID:       channelID,
-		BotUserID:       botUserID,
-		DispatchCommand: dispatchCmd,
-		StatePath:       statePath,
-		Interval:        interval,
-		MaxRetries:      maxRetries,
-		RestartDelay:    restartDelay,
-		Deadline:        deadline,
-		WebhookURL:      webhookURL,
+		Board:             board,
+		MCPURL:            mcpURL,
+		ChannelID:         channelID,
+		BotUserID:         botUserID,
+		DispatchCommand:   dispatchCmd,
+		StatePath:         statePath,
+		Interval:          interval,
+		MaxRetries:        maxRetries,
+		RestartDelay:      restartDelay,
+		Deadline:          deadline,
+		WebhookURL:        webhookURL,
+		CheckpointOnStart: checkpointOnStart,
 	}, nil
 }
 
@@ -1064,7 +1096,7 @@ func defaultBotDispatchCommand(dir string) string {
 	if _, err := os.Stat(loopScriptPath); err != nil {
 		return ""
 	}
-	return "docker compose exec -T llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'"
+	return "docker compose exec -T -e RENKIN_BOARD_ITEM_ID -e RENKIN_BOARD_CHANNEL_ID -e RENKIN_BOARD_AUTHOR_ID -e RENKIN_BOARD_CONTENT -e RENKIN_BOARD_CREATED_AT llm-agent bash -lc 'renkin-generate-llm-config; bash /renkin-conf/bot-loop.sh'"
 }
 
 func runStop(cmd *cobra.Command, args []string) error {
