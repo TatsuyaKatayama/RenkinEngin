@@ -34,6 +34,9 @@ var (
 	botCmd      string
 	botState    string
 	botInterval time.Duration
+	botRetries  int
+	botDelay    time.Duration
+	botDeadline time.Duration
 )
 
 func main() {
@@ -130,6 +133,9 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 		c.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD from host/.env)")
 		c.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
 		c.Flags().DurationVar(&botInterval, "interval", 30*time.Second, "Polling interval for bot run")
+		c.Flags().IntVar(&botRetries, "max-retries", bot.DefaultDispatchMaxRetries, "Maximum dispatch attempts before exhausted")
+		c.Flags().DurationVar(&botDelay, "restart-delay", bot.DefaultDispatchDelay, "Delay before retrying unresolved dispatches")
+		c.Flags().DurationVar(&botDeadline, "deadline", bot.DefaultDispatchTimeout, "Per-attempt dispatch deadline")
 	}
 	botRootCmd.AddCommand(botRunCmd, botRunOnceCmd)
 
@@ -730,7 +736,7 @@ func runBot(cmd *cobra.Command, once bool) error {
 		}
 		return envFileValues[key]
 	}
-	opts, err := resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, getenv)
+	opts, err := resolveBotOptions(botMCPURL, botChannel, botUserID, botCmd, botState, botInterval, botRetries, botDelay, botDeadline, getenv)
 	if err != nil {
 		return err
 	}
@@ -746,7 +752,7 @@ func runBot(cmd *cobra.Command, once bool) error {
 		Dir:     ".",
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
-	}, os.Stdout)
+	}, os.Stdout, bot.WithResolutionChecker(adapter), bot.WithDispatchPolicy(opts.MaxRetries, opts.RestartDelay, opts.Deadline))
 	poller := bot.NewPoller(adapter, store, os.Stdout)
 	poller.SetDispatcher(dispatcher)
 
@@ -765,9 +771,12 @@ type botOptions struct {
 	DispatchCommand string
 	StatePath       string
 	Interval        time.Duration
+	MaxRetries      int
+	RestartDelay    time.Duration
+	Deadline        time.Duration
 }
 
-func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, getenv func(string) string) (botOptions, error) {
+func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, getenv func(string) string) (botOptions, error) {
 	if mcpURL == "" {
 		mcpURL = getenv("DISCORD_MCP_URL")
 	}
@@ -789,6 +798,15 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 	if interval <= 0 {
 		return botOptions{}, fmt.Errorf("bot interval must be positive")
 	}
+	if maxRetries <= 0 {
+		return botOptions{}, fmt.Errorf("bot max retries must be positive")
+	}
+	if restartDelay < 0 {
+		return botOptions{}, fmt.Errorf("bot restart delay cannot be negative")
+	}
+	if deadline <= 0 {
+		return botOptions{}, fmt.Errorf("bot deadline must be positive")
+	}
 	if channelID == "" {
 		return botOptions{}, fmt.Errorf("bot channel ID is required; pass --channel-id or set DISCORD_CHANNEL_ID")
 	}
@@ -802,6 +820,9 @@ func resolveBotOptions(mcpURL, channelID, botUserID, dispatchCmd, statePath stri
 		DispatchCommand: dispatchCmd,
 		StatePath:       statePath,
 		Interval:        interval,
+		MaxRetries:      maxRetries,
+		RestartDelay:    restartDelay,
+		Deadline:        deadline,
 	}, nil
 }
 

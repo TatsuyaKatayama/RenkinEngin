@@ -72,7 +72,7 @@ func TestResolveBotOptions(t *testing.T) {
 		"DISCORD_BOT_USER_ID":     "bot-1",
 		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
 	}
-	opts, err := resolveBotOptions("", "", "", "", "", time.Second, func(key string) string {
+	opts, err := resolveBotOptions("", "", "", "", "", time.Second, 2, 3*time.Second, 4*time.Second, func(key string) string {
 		return env[key]
 	})
 
@@ -83,16 +83,19 @@ func TestResolveBotOptions(t *testing.T) {
 	assert.Equal(t, "renkin start --cmd true", opts.DispatchCommand)
 	assert.Equal(t, ".renkin_bot_state.json", opts.StatePath)
 	assert.Equal(t, time.Second, opts.Interval)
+	assert.Equal(t, 2, opts.MaxRetries)
+	assert.Equal(t, 3*time.Second, opts.RestartDelay)
+	assert.Equal(t, 4*time.Second, opts.Deadline)
 }
 
 func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
-	_, err := resolveBotOptions("", "", "", "", "", time.Second, func(string) string {
+	_, err := resolveBotOptions("", "", "", "", "", time.Second, 1, 0, time.Second, func(string) string {
 		return ""
 	})
 
 	assert.ErrorContains(t, err, "bot channel ID is required")
 
-	_, err = resolveBotOptions("", "channel-1", "", "", "", time.Second, func(string) string {
+	_, err = resolveBotOptions("", "channel-1", "", "", "", time.Second, 1, 0, time.Second, func(string) string {
 		return ""
 	})
 

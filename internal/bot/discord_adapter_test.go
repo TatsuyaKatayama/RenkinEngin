@@ -95,3 +95,34 @@ func TestDiscordAdapterPollSinceDecodesStructuredContent(t *testing.T) {
 	assert.Equal(t, "201", items[0].ID)
 	assert.Equal(t, "201", next.LastMessageID)
 }
+
+func TestDiscordAdapterIsResolvedDetectsOwnBotReplyReference(t *testing.T) {
+	caller := &fakeToolCaller{
+		response: json.RawMessage(`{"messages":[
+			{"id":"201","content":"reply","author":{"id":"bot1","bot":true},"message_reference":{"message_id":"101"}}
+		]}`),
+	}
+	adapter := NewDiscordAdapter(caller, "c1", "bot1")
+
+	resolved, err := adapter.IsResolved(context.Background(), BoardItem{ID: "101", ChannelID: "c1"})
+
+	require.NoError(t, err)
+	assert.True(t, resolved)
+	assert.Equal(t, "read_messages", caller.name)
+	assert.Equal(t, "c1", caller.arguments["channelId"])
+}
+
+func TestDiscordAdapterIsResolvedIgnoresOtherReplies(t *testing.T) {
+	caller := &fakeToolCaller{
+		response: json.RawMessage(`{"messages":[
+			{"id":"201","content":"other reply","author":{"id":"bot1","bot":true},"message_reference":{"message_id":"999"}},
+			{"id":"202","content":"human reply","author":{"id":"u1","bot":false},"message_reference":{"message_id":"101"}}
+		]}`),
+	}
+	adapter := NewDiscordAdapter(caller, "c1", "bot1")
+
+	resolved, err := adapter.IsResolved(context.Background(), BoardItem{ID: "101", ChannelID: "c1"})
+
+	require.NoError(t, err)
+	assert.False(t, resolved)
+}

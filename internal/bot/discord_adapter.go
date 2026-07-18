@@ -68,6 +68,33 @@ func (a *DiscordAdapter) PollSince(ctx context.Context, cp Checkpoint) ([]BoardI
 	return items, next, nil
 }
 
+func (a *DiscordAdapter) IsResolved(ctx context.Context, item BoardItem) (bool, error) {
+	channelID := firstNonEmpty(item.ChannelID, a.channelID)
+	args := map[string]any{
+		"channelId": channelID,
+		"count":     100,
+	}
+
+	raw, err := a.caller.CallTool(ctx, "read_messages", args)
+	if err != nil {
+		return false, err
+	}
+
+	messages, err := decodeDiscordMessages(raw)
+	if err != nil {
+		return false, err
+	}
+	for _, msg := range messages {
+		if !a.isOwnBotMessage(msg) || msg.MessageReference == nil {
+			continue
+		}
+		if msg.MessageReference.MessageID == item.ID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (a *DiscordAdapter) isOwnBotMessage(msg discordMessage) bool {
 	if a.botUserID != "" && msg.Author.ID == a.botUserID {
 		return true
@@ -84,6 +111,9 @@ type discordMessage struct {
 		ID  string `json:"id"`
 		Bot bool   `json:"bot"`
 	} `json:"author"`
+	MessageReference *struct {
+		MessageID string `json:"message_id"`
+	} `json:"message_reference"`
 }
 
 func decodeDiscordMessages(raw json.RawMessage) ([]discordMessage, error) {

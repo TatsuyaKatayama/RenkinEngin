@@ -80,5 +80,5 @@ func TestBotRunOnceDispatchesDetectedDiscordMessage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(state), `"last_message_id": "101"`)
 	assert.Contains(t, string(state), `"board_item_id": "101"`)
-	assert.Contains(t, string(state), `"state": "confirmed"`)
+	assert.Contains(t, string(state), `"state": "in_flight"`)
 }
