@@ -85,8 +85,12 @@ const dockerComposeTemplate = `services:
 {{- if .Image}}
     image: {{.Image}}
 {{- end}}
+{{- if .Command}}
+    command: >
+{{ indent 6 .Command}}
+{{- end}}
     ports:
-      - "{{.Port}}:{{.Port}}"
+      - "{{hostPort .}}:{{.Port}}"
 {{- if .Environment}}
     environment:
 {{- range .Environment}}
@@ -269,7 +273,10 @@ func GenerateRuntimeConfigInstall(cfg config.Config) string {
 }
 
 func GenerateDockerCompose(cfg config.Config) (string, error) {
-	tmpl, err := template.New("docker-compose.yml").Parse(dockerComposeTemplate)
+	tmpl, err := template.New("docker-compose.yml").Funcs(template.FuncMap{
+		"hostPort": hostPort,
+		"indent":   indent,
+	}).Parse(dockerComposeTemplate)
 	if err != nil {
 		return "", err
 	}
@@ -291,6 +298,22 @@ func GenerateDockerCompose(cfg config.Config) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func hostPort(tool config.Tool) int {
+	if tool.HostPort != 0 {
+		return tool.HostPort
+	}
+	return tool.Port
+}
+
+func indent(spaces int, value string) string {
+	prefix := strings.Repeat(" ", spaces)
+	lines := strings.Split(strings.TrimRight(value, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func composeEnvKeys(keys []string) []string {

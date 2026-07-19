@@ -1,0 +1,57 @@
+[[tool]]
+name = "discourse-mcp"
+type = "mcp"
+image = "node:24"
+command = """
+/bin/sh -lc 'cat > /tmp/discourse-mcp-profile.json <<EOF
+{"auth_pairs":[{"site":"$${DISCOURSE_BASE_URL}","api_key":"$${DISCOURSE_API_KEY}","api_username":"$${DISCOURSE_API_USERNAME:-system}"}],"read_only":false,"allow_writes":true,"site":"$${DISCOURSE_BASE_URL}","transport":"http","port":3000}
+EOF
+exec npx -y @discourse/mcp@latest --profile /tmp/discourse-mcp-profile.json --transport http --port 3000'
+"""
+port = 3000
+host_port = 8086
+health_path = "/health"
+environment = [
+    "DISCOURSE_BASE_URL",
+    "DISCOURSE_API_KEY",
+    "DISCOURSE_API_USERNAME=system",
+    "DISCOURSE_CATEGORY_ID",
+    "DISCOURSE_TOPIC_ID",
+    "DISCOURSE_BOT_USER_ID",
+    "DISCOURSE_MCP_URL",
+]
+mcp_config_codex = """
+[mcp_servers.discourse]
+url = "http://discourse-mcp:3000/mcp"
+http_headers = { Accept = "text/event-stream, application/json" }
+"""
+mcp_config_gemini = """
+    "discourse": {"url": "http://discourse-mcp:3000/mcp"}
+"""
+instructions = """
+# discourse-mcp
+MCP server for Discourse forum communication, using the official npm package
+`@discourse/mcp` from `discourse/discourse-mcp` under the MIT license.
+
+The Discourse API key is held only by the `discourse-mcp` compose service.
+Agent containers connect to `http://discourse-mcp:3000/mcp` through the compose
+network. The host-side Bot Server should use `DISCOURSE_MCP_URL`, defaulting to
+`http://localhost:8086/mcp`.
+
+Use the official tool names exposed by `@discourse/mcp`, including
+`discourse_filter_topics`, `discourse_read_topic`, `discourse_read_post`, and
+`discourse_create_post`. Do not use Renkin-specific tool names such as
+`list_posts_since` unless a separate wrapper service is explicitly introduced.
+
+When `RENKIN_BOARD_ITEM_ID` is present, the Go-side Bot Server already selected
+one board item for this loop. In that mode, process only that item using
+`RENKIN_BOARD_ITEM_ID`, `RENKIN_BOARD_CHANNEL_ID`, `RENKIN_BOARD_AUTHOR_ID`, and
+`RENKIN_BOARD_CONTENT`; do not discover additional forum work.
+
+Agents must complete work by replying in the original Discourse topic and should
+include this marker in the reply body so the Bot Server can confirm resolution:
+`<!-- renkin:resolved board_item_id=discourse:<post_id> -->`.
+
+Never print or send environment variables that may contain secrets, including
+`DISCOURSE_API_KEY`, API keys, access tokens, passwords, and webhook URLs.
+"""
