@@ -141,12 +141,12 @@ Note: If --cmd is provided, it takes absolute priority and overrides any default
 	}
 	var botStopCmd = &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the background Discord polling bot",
+		Short: "Stop the background board polling bot",
 		RunE:  runBotStop,
 	}
 	var botStatusCmd = &cobra.Command{
 		Use:   "status",
-		Short: "Show the Discord polling bot status",
+		Short: "Show the board polling bot status",
 		RunE:  runBotStatus,
 	}
 	for _, c := range []*cobra.Command{botRunCmd, botRunOnceCmd} {
@@ -750,11 +750,11 @@ func determineCommand(metaLLMCmd, overrideCmd string) string {
 }
 
 func addBotRunFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&botMCPURL, "mcp-url", "", "Discord MCP endpoint URL (default: DISCORD_MCP_URL from host/.env or http://localhost:8085/mcp)")
-	cmd.Flags().StringVar(&botChannel, "channel-id", "", "Discord channel ID to poll (default: DISCORD_CHANNEL_ID from host/.env)")
-	cmd.Flags().StringVar(&botUserID, "bot-user-id", "", "Discord bot user ID to ignore (default: DISCORD_BOT_USER_ID from host/.env)")
-	cmd.Flags().StringVar(&botUsername, "bot-username", "", "Discord bot username to ignore when only formatted text is available (default: DISCORD_BOT_USERNAME from host/.env)")
-	cmd.Flags().StringVar(&botBoard, "board", "discord", "Board adapter to use (currently: discord)")
+	cmd.Flags().StringVar(&botMCPURL, "mcp-url", "", "Board MCP endpoint URL (board-specific env/default when omitted)")
+	cmd.Flags().StringVar(&botChannel, "channel-id", "", "Board channel/thread ID to poll (board-specific env when omitted)")
+	cmd.Flags().StringVar(&botUserID, "bot-user-id", "", "Board bot user ID to ignore (board-specific env when omitted)")
+	cmd.Flags().StringVar(&botUsername, "bot-username", "", "Board bot username to ignore when only formatted text is available (board-specific env when omitted)")
+	cmd.Flags().StringVar(&botBoard, "board", defaultBotBoard, "Board adapter to use (supported: "+supportedBotBoardsText()+")")
 	cmd.Flags().StringVar(&botCmd, "cmd", "", "Host command to run when a board item is detected (default: RENKIN_BOT_DISPATCH_CMD; for --board discord, .renkin/conf/bot-loop.sh is used when present)")
 	cmd.Flags().StringVar(&botState, "state", "", "Bot state file path (default: .renkin_bot_state.json)")
 	cmd.Flags().DurationVar(&botInterval, "interval", 30*time.Second, "Polling interval for bot run")
@@ -839,7 +839,7 @@ func newBoardAdapter(opts botOptions) (dispatchBoardAdapter, error) {
 		adapter.SetBotUsername(opts.BotUsername)
 		return adapter, nil
 	default:
-		return nil, fmt.Errorf("unsupported bot board %q; supported boards: discord", opts.Board)
+		return nil, unsupportedBotBoardError(opts.Board)
 	}
 }
 
@@ -973,6 +973,10 @@ type botOptions struct {
 	CheckpointOnStart bool
 }
 
+const defaultBotBoard = "discord"
+
+var supportedBotBoards = []string{"discord"}
+
 func botRunArgs(opts botOptions) []string {
 	return []string{
 		"bot", "run",
@@ -1034,31 +1038,10 @@ func printableStatusValue(value string) string {
 
 func resolveBotOptions(board, mcpURL, channelID, botUserID, botUsername, dispatchCmd, statePath string, interval time.Duration, maxRetries int, restartDelay, deadline time.Duration, webhookURL string, checkpointOnStart bool, getenv func(string) string) (botOptions, error) {
 	if board == "" {
-		board = "discord"
-	}
-	if board != "discord" {
-		return botOptions{}, fmt.Errorf("unsupported bot board %q; supported boards: discord", board)
-	}
-	if mcpURL == "" {
-		mcpURL = getenv("DISCORD_MCP_URL")
-	}
-	if mcpURL == "" {
-		mcpURL = "http://localhost:8085/mcp"
-	}
-	if channelID == "" {
-		channelID = getenv("DISCORD_CHANNEL_ID")
-	}
-	if botUserID == "" {
-		botUserID = getenv("DISCORD_BOT_USER_ID")
-	}
-	if botUsername == "" {
-		botUsername = getenv("DISCORD_BOT_USERNAME")
+		board = defaultBotBoard
 	}
 	if dispatchCmd == "" {
 		dispatchCmd = getenv("RENKIN_BOT_DISPATCH_CMD")
-	}
-	if dispatchCmd == "" && board == "discord" {
-		dispatchCmd = defaultBotDispatchCommand(".")
 	}
 	if webhookURL == "" {
 		webhookURL = getenv("RENKIN_BOT_WEBHOOK_URL")
@@ -1078,13 +1061,7 @@ func resolveBotOptions(board, mcpURL, channelID, botUserID, botUsername, dispatc
 	if deadline <= 0 {
 		return botOptions{}, fmt.Errorf("bot deadline must be positive")
 	}
-	if channelID == "" {
-		return botOptions{}, fmt.Errorf("bot channel ID is required; pass --channel-id or set DISCORD_CHANNEL_ID")
-	}
-	if dispatchCmd == "" {
-		return botOptions{}, fmt.Errorf("bot dispatch command is required; pass --cmd or set RENKIN_BOT_DISPATCH_CMD")
-	}
-	return botOptions{
+	opts := botOptions{
 		Board:             board,
 		MCPURL:            mcpURL,
 		ChannelID:         channelID,
@@ -1098,7 +1075,56 @@ func resolveBotOptions(board, mcpURL, channelID, botUserID, botUsername, dispatc
 		Deadline:          deadline,
 		WebhookURL:        webhookURL,
 		CheckpointOnStart: checkpointOnStart,
-	}, nil
+	}
+	if err := resolveBoardOptions(&opts, getenv); err != nil {
+		return botOptions{}, err
+	}
+	if opts.DispatchCommand == "" {
+		return botOptions{}, fmt.Errorf("bot dispatch command is required; pass --cmd or set RENKIN_BOT_DISPATCH_CMD")
+	}
+	return opts, nil
+}
+
+func resolveBoardOptions(opts *botOptions, getenv func(string) string) error {
+	switch opts.Board {
+	case "discord":
+		return resolveDiscordBoardOptions(opts, getenv)
+	default:
+		return unsupportedBotBoardError(opts.Board)
+	}
+}
+
+func resolveDiscordBoardOptions(opts *botOptions, getenv func(string) string) error {
+	if opts.MCPURL == "" {
+		opts.MCPURL = getenv("DISCORD_MCP_URL")
+	}
+	if opts.MCPURL == "" {
+		opts.MCPURL = "http://localhost:8085/mcp"
+	}
+	if opts.ChannelID == "" {
+		opts.ChannelID = getenv("DISCORD_CHANNEL_ID")
+	}
+	if opts.BotUserID == "" {
+		opts.BotUserID = getenv("DISCORD_BOT_USER_ID")
+	}
+	if opts.BotUsername == "" {
+		opts.BotUsername = getenv("DISCORD_BOT_USERNAME")
+	}
+	if opts.DispatchCommand == "" {
+		opts.DispatchCommand = defaultBotDispatchCommand(".")
+	}
+	if opts.ChannelID == "" {
+		return fmt.Errorf("bot channel ID is required for --board discord; pass --channel-id or set DISCORD_CHANNEL_ID")
+	}
+	return nil
+}
+
+func unsupportedBotBoardError(board string) error {
+	return fmt.Errorf("unsupported bot board %q; supported boards: %s", board, supportedBotBoardsText())
+}
+
+func supportedBotBoardsText() string {
+	return strings.Join(supportedBotBoards, ", ")
 }
 
 func defaultBotDispatchCommand(dir string) string {

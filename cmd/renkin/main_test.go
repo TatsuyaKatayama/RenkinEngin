@@ -110,12 +110,27 @@ func TestResolveBotOptions(t *testing.T) {
 	assert.True(t, opts.CheckpointOnStart)
 }
 
+func TestResolveBotOptionsDefaultsToDiscord(t *testing.T) {
+	env := map[string]string{
+		"DISCORD_CHANNEL_ID":      "channel-1",
+		"RENKIN_BOT_DISPATCH_CMD": "renkin start --cmd true",
+	}
+	opts, err := resolveBotOptions("", "", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(key string) string {
+		return env[key]
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "discord", opts.Board)
+	assert.Equal(t, "http://localhost:8085/mcp", opts.MCPURL)
+	assert.Equal(t, "channel-1", opts.ChannelID)
+}
+
 func TestResolveBotOptionsRequiresChannelAndCommand(t *testing.T) {
 	_, err := resolveBotOptions("discord", "", "", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
 	})
 
-	assert.ErrorContains(t, err, "bot channel ID is required")
+	assert.ErrorContains(t, err, "bot channel ID is required for --board discord")
 
 	_, err = resolveBotOptions("discord", "", "channel-1", "", "", "", "", time.Second, 1, 0, time.Second, "", false, func(string) string {
 		return ""
@@ -129,7 +144,13 @@ func TestResolveBotOptionsRejectsUnsupportedBoard(t *testing.T) {
 		return ""
 	})
 
-	assert.ErrorContains(t, err, `unsupported bot board "masabbs"`)
+	assert.EqualError(t, err, `unsupported bot board "masabbs"; supported boards: discord`)
+}
+
+func TestNewBoardAdapterRejectsUnsupportedBoard(t *testing.T) {
+	_, err := newBoardAdapter(botOptions{Board: "masabbs"})
+
+	assert.EqualError(t, err, `unsupported bot board "masabbs"; supported boards: discord`)
 }
 
 func TestResolveBotOptionsDefaultsDispatchCommandFromBotLoop(t *testing.T) {
@@ -179,6 +200,24 @@ func TestBotRunArgs(t *testing.T) {
 		"--webhook-url", "http://webhook.example",
 		"--checkpoint-on-start", "true",
 	}, args)
+}
+
+func TestBotRunArgsPreserveBoard(t *testing.T) {
+	args := botRunArgs(botOptions{
+		Board:           "discourse",
+		MCPURL:          "http://localhost:8086/mcp",
+		ChannelID:       "topic-1",
+		DispatchCommand: "renkin start --cmd true",
+		StatePath:       "state.json",
+		Interval:        2 * time.Second,
+		MaxRetries:      3,
+		RestartDelay:    4 * time.Second,
+		Deadline:        5 * time.Second,
+	})
+
+	require.GreaterOrEqual(t, len(args), 4)
+	assert.Equal(t, "--board", args[2])
+	assert.Equal(t, "discourse", args[3])
 }
 
 func TestRecordStartupCheckpointSkipsExistingItemsWithoutDispatch(t *testing.T) {
