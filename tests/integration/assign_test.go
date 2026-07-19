@@ -69,37 +69,3 @@ install = "RUN echo openfoam"
 	env, _ := os.ReadFile(filepath.Join(targetDir, ".env"))
 	assert.NotContains(t, string(env), "GEMINI_API_KEY=")
 }
-
-func TestRenkinAssignWithDiscourseMCPPreset(t *testing.T) {
-	tmpDir, _ := os.MkdirTemp("", "renkin-discourse-preset-int-test")
-	defer os.RemoveAll(tmpDir)
-
-	binPath := filepath.Join(tmpDir, "renkin")
-	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/renkin")
-	buildCmd.Dir = "../../"
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build renkin: %v", err)
-	}
-
-	targetDir := filepath.Join(tmpDir, "target")
-	assignCmd := exec.Command(binPath, "assign", targetDir,
-		"--llm", "codex",
-		"--tools", "discourse-mcp",
-	)
-	assignCmd.Dir = "../../"
-	output, err := assignCmd.CombinedOutput()
-	assert.NoError(t, err, string(output))
-
-	compose, err := os.ReadFile(filepath.Join(targetDir, "docker-compose.yml"))
-	assert.NoError(t, err)
-	assert.Contains(t, string(compose), "discourse-mcp:")
-	assert.Contains(t, string(compose), "image: node:24")
-	assert.Contains(t, string(compose), `- "8086:3000"`)
-	assert.Contains(t, string(compose), "http://localhost:3000/health")
-
-	env, err := os.ReadFile(filepath.Join(targetDir, ".env"))
-	assert.NoError(t, err)
-	assert.Contains(t, string(env), "DISCOURSE_BASE_URL=")
-	assert.Contains(t, string(env), "DISCOURSE_API_KEY=")
-	assert.Contains(t, string(env), "DISCOURSE_CATEGORY_ID=")
-}

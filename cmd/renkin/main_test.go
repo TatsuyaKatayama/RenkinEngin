@@ -204,8 +204,8 @@ func TestBotRunArgs(t *testing.T) {
 
 func TestBotRunArgsPreserveBoard(t *testing.T) {
 	args := botRunArgs(botOptions{
-		Board:           "discourse",
-		MCPURL:          "http://localhost:8086/mcp",
+		Board:           "nodebb",
+		MCPURL:          "http://localhost:8087/mcp",
 		ChannelID:       "topic-1",
 		DispatchCommand: "renkin start --cmd true",
 		StatePath:       "state.json",
@@ -217,7 +217,7 @@ func TestBotRunArgsPreserveBoard(t *testing.T) {
 
 	require.GreaterOrEqual(t, len(args), 4)
 	assert.Equal(t, "--board", args[2])
-	assert.Equal(t, "discourse", args[3])
+	assert.Equal(t, "nodebb", args[3])
 }
 
 func TestRecordStartupCheckpointSkipsExistingItemsWithoutDispatch(t *testing.T) {
