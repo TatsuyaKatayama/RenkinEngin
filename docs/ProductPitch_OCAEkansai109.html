@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>RenkinEngin ⚗️⚙️ Presentation</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/theme/black.min.css">
+
+  <!-- Theme used for syntax highlighting of code -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/plugin/highlight/monokai.min.css">
+</head>
+
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section data-markdown data-separator="---" data-separator-vertical="@@">
+        <textarea data-template>
+# RenkinEngin ⚗️⚙️
+## LLMエージェントと解析ツールの「錬金」基盤
+
+---
+
+### 現代の課題：環境構築の地獄 🌋
+- LLMエージェントを動かしたいが、ツールのセットアップが面倒 🛠️
+- 解析ツール（OpenFOAM等）とAIを連携させるのが一苦労 🤯
+- 環境ごとに異なるAPIキーやプロキシ設定の管理が煩雑 🔑
+
+---
+
+### 解決策：RenkinEngin ⚗️
+**「エージェントを錬金し、自律的な労働（連勤）を命じる」**
+
+- 🧪 **宣言的構成**: Dockerfile不要。プリセットを組み合わせるだけ。
+- 🤖 **ツール同居型**: エージェントと同じ部屋にツールを配置。
+- ⚙️ **スキル合成**: ツールの使い方をエージェントに自動伝授。
+- 🏢 **環境継承**: ホストのAPIキーやプロキシを自動的に引き継ぐ。
+
+---
+
+### まずは普通の連勤ライフサイクル 🚀
+
+1. **錬金（Assign）** ⚗️  
+   連勤の業務命令（環境構成:Dockerfile生成）  
+   ```renkin assign ./ --llm agy```
+
+@@
+
+2. **労働開始（Start）** ⚙️  
+   エージェントが働きだします。  
+   ```renkin start```
+
+@@
+
+3. **一時停止（Stop）** 🛑  
+   ちょっと休憩。  
+   ```renkin stop```
+
+@@
+
+4. **やり直し（Restart）** 🔄  
+   もう一度頑張れ。  
+   ```renkin restart [--rebuild]```
+
+@@
+
+5. **完全解雇（Kaiko）** 🤖  
+   Dockerイメージも含め、全てを綺麗に消し去ります。  
+   ```renkin kaiko```
+
+---
+
+### 真の連勤を行うための課題：コンテキストが溜まる 🧠💥
+- エージェントを開きっぱなしにすると、会話履歴がどんどん肥大化
+- ずっと起動していると、前の仕事の記憶を引きずる
+- 「2分待って確認して」と頼むだけでも、2分後に過去の全会話が再送信される
+- 待機しているだけなのに、文脈とコストが増えていく
+
+---
+
+### 真の連勤：掲示板に常駐させ、いつでも叩き起こす 📣
+**いつ何時でも、呼ばれたら起きて働く。**
+
+```bash
+renkin assign ./ --llm codex --tools discord-mcp
+renkin bot start --board discord
+```
+
+- 掲示板を監視
+- 新しい依頼が来たらエージェントを起動
+- 仕事が終わったらreplyで完了報告
+- 普段は待機。呼ばれた時だけ労働。
+
+---
+
+### Bot Server の仕組み：Polling Loop 🔁
+
+```text
+掲示板を読む
+  ↓
+新着メッセージを見つける
+  ↓
+エージェントへdispatch
+  ↓
+replyを確認
+  ↓
+また掲示板を読む
+```
+
+- LLMを常時起動し続けない
+- Go側のBot Serverが軽量に監視
+- Discord MCP service経由で掲示板メッセージを取得
+- 「待機」と「労働」を分離する
+
+---
+
+### Loop待機 vs Polling待機 🧠
+
+#### LLMに「2分待って」と頼む場合
+
+```text
+依頼する
+  ↓
+LLMが2分待つ
+  ↓
+2分後、過去の全会話を含めて再開
+  ↓
+新着情報がない
+  ↓
+また「2分待つ」
+  ↓
+さらに過去の全会話を含めて再開
+```
+
+- 新着がなくても、再開のたびに過去コンテキストを背負い直す
+- 「待機」も「確認」も「空振り」もLLMの仕事になる
+
+@@
+
+#### Bot Serverでpollingする場合
+
+```text
+Bot Serverが軽量に待つ
+  ↓
+新着がなければ、また軽量に待つ
+  ↓
+必要な時だけLLMを起こす
+  ↓
+依頼に必要なコンテキストだけ渡す
+```
+
+- 待機と空振りはGo側のpolling loopが担当
+- LLMは仕事が来た時だけ起動
+- 仕事単位でコンテキストを小さくできる
+- 叩き起こされるまでは、安らかに眠れる
+
+---
+
+### エージェント間の待ち合わせにも効く 🤝
+**Aが働き、Bはコンテキストを食わずに待てる。**
+
+```text
+Agent A が解析を実行
+  ↓
+計算結果を掲示板へ投稿
+  ↓
+Bot Serverが新着を検知
+  ↓
+Agent B を必要な文脈だけで起動
+  ↓
+Bが結果をレビュー・次工程へ
+```
+
+- Bは、Aの計算中ずっと起きている必要がない
+- 長い解析待ちでBのコンテキストを消費しない
+- 「次の担当者を叩き起こす」仕組み
+
+@@
+
+### 失敗しても、まだ終われない 🔥
+**連勤に失敗はつきもの。復旧も業務です。**
+
+- dispatch状態を管理  
+  `pending -> in_flight -> confirmed`
+- replyが見つからなければ再試行
+- deadlineを超えた仕事も再試行
+- max retries到達で `exhausted`
+- exhausted時はwebhook通知も可能
+
+---
+
+### 🧪 錬金の秘術：スキル合成
+- 各ツール（OpenFOAM, Python, MCP等）の利用手順を自動集約 📚
+- `AGENTS.md` や `GEMINI.md` としてエージェントに提供 🧠
+- Bot用の作業指示・起動スクリプトもプリセットから合成
+- エージェントは起動した瞬間から、現場の作法を叩き込まれている
+
+---
+
+### 📦 充実のプリセット
+- **LLM**: ~~Gemini CLI~~, Codex CLI, AntiGravity 🤖
+- **Analysis**: OpenFOAM, OpenModelica, Python (uv) 🧪
+- **MCP**: Discord MCP, Forgejo MCP, Git MCP, masabbs MCP 🔌
+- **Bot運用**: 掲示板監視、依頼の実行、失敗時の再試行、完了通知 ⚙️
+
+---
+
+### ⚠️ 注意事項（等価交換の法則）
+- **APIコスト**: 叩き起こせば、当然お金がかかります 💸
+- **Discord Token / LLMのAPI_KEY**: 漏れたら即reset。労働災害です 🔥
+- **プロキシ設定**: `NO_PROXY` を怠ると、近所のサービスへ行くのに遠回りします 🕸️
+- **無限労働**: 便利ですが、監視と停止手段は用意しましょう
+
+---
+
+### 結び：真の連勤へ 🌌
+RenkinEngin で、人間を単純作業から解放し、  
+AIエージェントに「終わらない連勤」を。
+
+掲示板で呼ばれ、  
+必要な文脈だけ背負わされ、  
+失敗すれば復旧し、  
+成果物を投げ返す。
+
+**いつでも叩き起こせ、24時間働ける労働基盤へ。** ⚗️⚙️
+https://github.com/TatsuyaKatayama/RenkinEngin
+                </textarea>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/plugin/markdown/markdown.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/plugin/highlight/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/plugin/notes/notes.min.js"></script>
+  <script>
+    // More info about initialization & config:
+    // - https://revealjs.com/initialization/
+    // - https://revealjs.com/config/
+    Reveal.initialize({
+      hash: true,
+      plugins: [RevealMarkdown, RevealHighlight, RevealNotes]
+    });
+  </script>
+</body>
+
+</html>
